@@ -4,11 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>掃碼記貨品 - 庫存管理</title>
-    <!-- 引入 html5-qrcode 掃描庫 -->
     <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-    <!-- 引入 Dexie.js (IndexedDB 封裝) -->
     <script src="https://unpkg.com/dexie@3.2.4/dist/dexie.js"></script>
-    <!-- 引入 FileSaver.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
     <style>
         * {
@@ -23,7 +20,6 @@
             min-height: 100vh;
         }
 
-        /* 掃描器區塊 */
         .scanner-section {
             background: #000;
             position: relative;
@@ -58,14 +54,12 @@
             transform: scale(0.96);
         }
 
-        /* 主要內容區 */
         .content {
             padding: 16px;
             max-width: 600px;
             margin: 0 auto;
         }
 
-        /* 卡片樣式 */
         .card {
             background: white;
             border-radius: 16px;
@@ -83,7 +77,6 @@
             padding-left: 12px;
         }
 
-        /* 表單 */
         .form-group {
             margin-bottom: 16px;
         }
@@ -104,7 +97,6 @@
             border-radius: 12px;
             font-size: 16px;
             font-family: inherit;
-            transition: border-color 0.2s;
         }
 
         .form-group input:focus, 
@@ -118,7 +110,6 @@
             color: #666;
         }
 
-        /* 按鈕 */
         .btn {
             padding: 12px 20px;
             border: none;
@@ -126,11 +117,6 @@
             font-size: 16px;
             font-weight: 600;
             cursor: pointer;
-            transition: opacity 0.2s, transform 0.1s;
-        }
-
-        .btn:active {
-            transform: scale(0.98);
         }
 
         .btn-primary {
@@ -138,18 +124,13 @@
             color: white;
         }
 
-        .btn-success {
-            background: #34c759;
+        .btn-secondary {
+            background: #8e8e93;
             color: white;
         }
 
         .btn-danger {
             background: #ff3b30;
-            color: white;
-        }
-
-        .btn-secondary {
-            background: #8e8e93;
             color: white;
         }
 
@@ -163,7 +144,6 @@
             flex: 1;
         }
 
-        /* 貨品列表 */
         .product-item {
             background: #f8f9fa;
             border-radius: 12px;
@@ -172,11 +152,6 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            transition: background 0.2s;
-        }
-
-        .product-item:active {
-            background: #e9ecef;
         }
 
         .product-info {
@@ -195,17 +170,12 @@
             font-size: 12px;
             color: #666;
             font-family: monospace;
-            margin-bottom: 4px;
         }
 
         .product-meta {
             font-size: 12px;
             color: #999;
-        }
-
-        .product-actions {
-            display: flex;
-            gap: 12px;
+            margin-top: 4px;
         }
 
         .icon-btn {
@@ -214,14 +184,8 @@
             font-size: 20px;
             cursor: pointer;
             padding: 8px;
-            transition: transform 0.1s;
         }
 
-        .icon-btn:active {
-            transform: scale(0.9);
-        }
-
-        /* 提示訊息 */
         .toast {
             position: fixed;
             bottom: 30px;
@@ -233,7 +197,6 @@
             border-radius: 40px;
             font-size: 14px;
             z-index: 1000;
-            white-space: nowrap;
             animation: slideUp 0.3s ease;
         }
 
@@ -248,7 +211,6 @@
             }
         }
 
-        /* 標籤頁 */
         .tabs {
             display: flex;
             background: white;
@@ -265,8 +227,6 @@
             cursor: pointer;
             font-weight: 500;
             color: #666;
-            transition: all 0.2s;
-            font-size: 15px;
         }
 
         .tab.active {
@@ -282,7 +242,6 @@
             display: block;
         }
 
-        /* 搜尋框 */
         .search-box {
             margin-bottom: 16px;
         }
@@ -293,30 +252,20 @@
             border: 1px solid #e0e0e0;
             border-radius: 12px;
             font-size: 16px;
-            background: #f8f9fa;
         }
 
-        /* 空狀態 */
         .empty-state {
             text-align: center;
             padding: 40px 20px;
             color: #999;
         }
 
-        .empty-state-icon {
-            font-size: 48px;
-            margin-bottom: 12px;
-        }
-
-        /* 掃描提示 */
         .scan-hint {
             text-align: center;
             padding: 20px;
             color: #999;
-            font-size: 14px;
         }
 
-        /* 統計卡片 */
         .stats-card {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
@@ -336,11 +285,24 @@
             opacity: 0.9;
             margin-top: 4px;
         }
+
+        .scan-result {
+            background: #e8f0fe;
+            border-left: 4px solid #007aff;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+        }
+
+        .scan-result-code {
+            font-family: monospace;
+            font-size: 14px;
+            word-break: break-all;
+        }
     </style>
 </head>
 <body>
 
-<!-- 標籤頁導航 -->
 <div class="tabs">
     <div class="tab active" data-tab="scan">📷 掃描</div>
     <div class="tab" data-tab="list">📋 貨品清單</div>
@@ -358,6 +320,12 @@
     </div>
     
     <div class="content">
+        <!-- 顯示最後掃描的條碼 -->
+        <div id="lastScanDisplay" style="display:none;" class="scan-result">
+            <div style="font-weight:500; margin-bottom:4px;">📷 最後掃描的條碼：</div>
+            <div class="scan-result-code" id="lastScannedCode"></div>
+        </div>
+
         <!-- 貨品編輯表單 -->
         <div class="card" id="productFormCard" style="display:none;">
             <div class="card-title" id="formTitle">➕ 新增貨品</div>
@@ -404,8 +372,7 @@
 <!-- 貨品清單頁 -->
 <div class="tab-content" id="tab-list">
     <div class="content">
-        <!-- 統計卡片 -->
-        <div class="stats-card" id="statsCard">
+        <div class="stats-card">
             <div class="stats-number" id="totalCount">0</div>
             <div class="stats-label">總貨品數</div>
             <div class="stats-number" id="totalValue" style="font-size: 20px; margin-top: 8px;">$0</div>
@@ -440,40 +407,36 @@
         <div class="card">
             <div class="card-title">ℹ️ 使用說明</div>
             <div style="font-size: 14px; line-height: 1.8; color: #666;">
-                <p>📌 <strong>掃描貨品</strong><br>
+                <p>📌 <strong>掃描流程</strong><br>
                 1. 點擊「啟動掃描器」並允許鏡頭權限<br>
                 2. 將鏡頭對準條碼/QR Code<br>
-                3. 自動辨識後填寫貨品資訊儲存</p>
+                3. 系統會自動查詢資料庫：<br>
+                &nbsp;&nbsp;• <span style="color:#34c759;">✅ 有相同條碼</span> → 開啟該貨品資料（可編輯）<br>
+                &nbsp;&nbsp;• <span style="color:#007aff;">🆕 無相同條碼</span> → 開啟新增表單（條碼已自動填入）<br>
+                4. 填寫貨品資訊後點擊「儲存」</p>
                 
                 <p>📌 <strong>編輯貨品</strong><br>
                 在「貨品清單」點擊貨品即可編輯</p>
                 
                 <p>📌 <strong>資料備份</strong><br>
                 可匯出 JSON 檔案備份，或匯入還原資料</p>
-                
-                <p style="margin-top: 12px; background: #f0f0f0; padding: 8px; border-radius: 8px;">
-                💡 所有資料儲存在手機瀏覽器中，清除瀏覽器資料會遺失，請定期備份。
-                </p>
             </div>
         </div>
     </div>
 </div>
 
 <script>
-    // ==================== 初始化 IndexedDB ====================
+    // 初始化 IndexedDB
     const db = new Dexie('InventoryDB');
     db.version(1).stores({
         products: '++id, barcode, name, price, quantity, remark, createdAt, updatedAt'
     });
 
-    // 全域變數
     let html5QrCodeScanner = null;
     let currentProduct = null;
-    let currentBarcode = null;
     let isScannerRunning = false;
 
-    // ==================== 工具函數 ====================
-    function showToast(message, duration = 2000) {
+    function showToast(message) {
         const existingToast = document.querySelector('.toast');
         if (existingToast) existingToast.remove();
         
@@ -481,21 +444,26 @@
         toast.className = 'toast';
         toast.textContent = message;
         document.body.appendChild(toast);
-        setTimeout(() => toast.remove(), duration);
+        setTimeout(() => toast.remove(), 2000);
     }
 
-    // ==================== 貨品 CRUD ====================
+    // 根據條碼查詢貨品
+    async function getProductByBarcode(barcode) {
+        return await db.products.where('barcode').equals(barcode).first();
+    }
+
+    // 新增貨品
     async function addProduct(product) {
         const now = new Date().toISOString();
-        const id = await db.products.add({
+        await db.products.add({
             ...product,
             createdAt: now,
             updatedAt: now
         });
         showToast('✅ 新增成功');
-        return id;
     }
 
+    // 更新貨品
     async function updateProduct(id, updates) {
         await db.products.update(id, {
             ...updates,
@@ -504,6 +472,7 @@
         showToast('✏️ 更新成功');
     }
 
+    // 刪除貨品
     async function deleteProduct(id) {
         if (confirm('確定要刪除這個貨品嗎？')) {
             await db.products.delete(id);
@@ -514,79 +483,52 @@
         }
     }
 
-    async function getProductByBarcode(barcode) {
-        return await db.products.where('barcode').equals(barcode).first();
-    }
-
-    async function getAllProducts() {
-        return await db.products.toArray();
-    }
-
-    async function searchProducts(keyword) {
-        if (!keyword) return await getAllProducts();
-        const products = await db.products.toArray();
-        return products.filter(p => 
-            (p.name && p.name.toLowerCase().includes(keyword.toLowerCase())) || 
-            (p.barcode && p.barcode.toLowerCase().includes(keyword.toLowerCase()))
-        );
-    }
-
-    async function clearAllData() {
-        const count = await db.products.count();
-        if (count === 0) {
-            showToast('沒有資料需要清除');
-            return;
-        }
-        if (confirm(`⚠️ 確定要清除所有 ${count} 筆貨品資料嗎？此操作無法復原！`)) {
-            await db.products.clear();
-            showToast('已清除所有資料');
-            loadProductList();
-            updateStats();
-            resetForm();
-        }
-    }
-
     // 顯示貨品編輯表單
     function showProductForm(product, barcode) {
         const formCard = document.getElementById('productFormCard');
         const formTitle = document.getElementById('formTitle');
         const deleteBtn = document.getElementById('deleteBtn');
+        const lastScanDiv = document.getElementById('lastScanDisplay');
+        
+        // 顯示最後掃描的條碼
+        lastScanDiv.style.display = 'block';
+        document.getElementById('lastScannedCode').textContent = barcode;
         
         if (product) {
-            formTitle.textContent = '✏️ 編輯貨品';
-            document.getElementById('barcode').value = product.barcode || '';
+            // 有相同條碼 → 編輯模式，載入已儲存的資料
+            formTitle.textContent = '✏️ 編輯貨品（已存在）';
+            document.getElementById('barcode').value = product.barcode;
             document.getElementById('name').value = product.name || '';
             document.getElementById('price').value = product.price || '';
             document.getElementById('quantity').value = product.quantity || 0;
             document.getElementById('remark').value = product.remark || '';
             deleteBtn.style.display = 'block';
             currentProduct = product;
-            currentBarcode = product.barcode;
         } else {
-            formTitle.textContent = '➕ 新增貨品';
-            document.getElementById('barcode').value = barcode || '';
+            // 無相同條碼 → 新增模式，條碼已自動填入
+            formTitle.textContent = '➕ 新增貨品（新條碼）';
+            document.getElementById('barcode').value = barcode;
             document.getElementById('name').value = '';
             document.getElementById('price').value = '';
             document.getElementById('quantity').value = 1;
             document.getElementById('remark').value = '';
             deleteBtn.style.display = 'none';
             currentProduct = null;
-            currentBarcode = barcode;
         }
         
         formCard.style.display = 'block';
         document.getElementById('scanHint').style.display = 'none';
-        
         setTimeout(() => document.getElementById('name').focus(), 100);
     }
 
     function resetForm() {
         document.getElementById('productFormCard').style.display = 'none';
         document.getElementById('scanHint').style.display = 'block';
+        document.getElementById('lastScanDisplay').style.display = 'none';
         currentProduct = null;
-        currentBarcode = null;
     }
 
+    // 儲存表單
     async function handleSave() {
         const name = document.getElementById('name').value.trim();
         if (!name) {
@@ -604,15 +546,12 @@
         };
         
         if (currentProduct) {
+            // 更新已存在的貨品
             await updateProduct(currentProduct.id, productData);
             loadProductList();
             resetForm();
         } else {
-            const existing = await getProductByBarcode(productData.barcode);
-            if (existing) {
-                showToast('此條碼已有貨品，請編輯或使用不同條碼');
-                return;
-            }
+            // 新增貨品（條碼已經在掃描時寫入）
             await addProduct(productData);
             loadProductList();
             resetForm();
@@ -620,40 +559,41 @@
         updateStats();
     }
 
+    // ⭐ 核心功能：掃描條碼後的處理
     async function onScanSuccess(decodedText) {
         if (!isScannerRunning) return;
         
-        console.log('掃描到:', decodedText);
+        console.log('📷 掃描到條碼:', decodedText);
+        
+        // 震動回饋
         if (navigator.vibrate) navigator.vibrate(100);
         
-        const existingProduct = await getProductByBarcode(decodedText);
+        // 🔍 步驟1：記錄該 code 的 number
+        const scannedCode = decodedText;
         
+        // 🔍 步驟2：查詢資料庫是否有相同條碼
+        const existingProduct = await getProductByBarcode(scannedCode);
+        
+        // 🔍 步驟3：比對結果
         if (existingProduct) {
-            showToast(`📦 ${existingProduct.name}`);
-            showProductForm(existingProduct, decodedText);
+            // ✅ 有相同條碼 → 打開該貨品已儲存的資料
+            showToast(`📦 找到貨品: ${existingProduct.name}`);
+            showProductForm(existingProduct, scannedCode);
         } else {
-            showToast(`🆕 新貨品，請填寫資訊`);
-            showProductForm(null, decodedText);
+            // ✅ 沒有相同條碼 → 新增貨品，並自動寫入該條碼
+            showToast(`🆕 新條碼，請填寫貨品資訊`);
+            showProductForm(null, scannedCode);
         }
     }
 
-    // ==================== 掃描器控制 ====================
+    // 掃描器控制
     function startScanner() {
         if (!html5QrCodeScanner) {
             initScanner();
-        } else {
-            html5QrCodeScanner.resume();
-            isScannerRunning = true;
-            document.getElementById('startScannerBtn').style.display = 'none';
-            document.getElementById('stopScannerBtn').style.display = 'inline-block';
-            showToast('📷 掃描器已啟動');
         }
     }
     
     function initScanner() {
-        const readerElement = document.getElementById("reader");
-        if (!readerElement) return;
-        
         html5QrCodeScanner = new Html5Qrcode("reader");
         const config = {
             fps: 10,
@@ -674,8 +614,6 @@
         }).catch(err => {
             console.error('啟動掃描器失敗:', err);
             showToast('無法啟動掃描器，請確認已允許鏡頭權限');
-            document.getElementById('startScannerBtn').style.display = 'inline-block';
-            document.getElementById('stopScannerBtn').style.display = 'none';
         });
     }
     
@@ -686,26 +624,31 @@
                 document.getElementById('startScannerBtn').style.display = 'inline-block';
                 document.getElementById('stopScannerBtn').style.display = 'none';
                 showToast('掃描器已停止');
-            }).catch(err => {
-                console.error('停止掃描器失敗:', err);
             });
         }
     }
 
-    // ==================== 貨品列表渲染 ====================
+    // 貨品列表相關函數
+    async function getAllProducts() {
+        return await db.products.toArray();
+    }
+
+    async function searchProducts(keyword) {
+        if (!keyword) return await getAllProducts();
+        const products = await db.products.toArray();
+        return products.filter(p => 
+            (p.name && p.name.toLowerCase().includes(keyword.toLowerCase())) || 
+            (p.barcode && p.barcode.toLowerCase().includes(keyword.toLowerCase()))
+        );
+    }
+
     async function loadProductList() {
         const searchKeyword = document.getElementById('searchInput')?.value || '';
         const products = await searchProducts(searchKeyword);
         const container = document.getElementById('productList');
         
         if (products.length === 0) {
-            container.innerHTML = `
-                <div class="empty-state">
-                    <div class="empty-state-icon">📭</div>
-                    <div>暫無貨品資料</div>
-                    <div style="font-size: 12px; margin-top: 8px;">請先掃描條碼新增貨品</div>
-                </div>
-            `;
+            container.innerHTML = `<div class="empty-state">📭 暫無貨品資料</div>`;
             return;
         }
         
@@ -714,15 +657,11 @@
                 <div class="product-info" onclick="editProductById(${p.id})">
                     <div class="product-name">${escapeHtml(p.name || '無名稱')}</div>
                     <div class="product-barcode">📷 ${escapeHtml(p.barcode || '無條碼')}</div>
-                    <div class="product-meta">
-                        💰 $${(p.price || 0).toLocaleString()} &nbsp;|&nbsp;
-                        📦 ${p.quantity || 0} 件
-                        ${p.remark ? `&nbsp;|&nbsp;📝 ${escapeHtml(p.remark.substring(0, 15))}` : ''}
-                    </div>
+                    <div class="product-meta">💰 $${(p.price || 0).toLocaleString()} &nbsp;|&nbsp; 📦 ${p.quantity || 0} 件</div>
                 </div>
                 <div class="product-actions">
-                    <button class="icon-btn" onclick="editProductById(${p.id})" title="編輯">✏️</button>
-                    <button class="icon-btn" onclick="deleteProductById(${p.id})" title="刪除">🗑️</button>
+                    <button class="icon-btn" onclick="editProductById(${p.id})">✏️</button>
+                    <button class="icon-btn" onclick="deleteProductById(${p.id})">🗑️</button>
                 </div>
             </div>
         `).join('');
@@ -760,144 +699,75 @@
         const count = await db.products.count();
         const products = await db.products.toArray();
         const totalValue = products.reduce((sum, p) => sum + (p.price || 0) * (p.quantity || 0), 0);
-        
         document.getElementById('totalCount').textContent = count;
         document.getElementById('totalValue').textContent = `$${totalValue.toLocaleString()}`;
     }
-    
-    // ==================== 匯出/匯入 ====================
+
+    // 匯出/匯入
     async function exportData() {
         const products = await getAllProducts();
         if (products.length === 0) {
             showToast('沒有資料可匯出');
             return;
         }
-        
-        const exportData = {
-            version: "1.0",
-            exportDate: new Date().toISOString(),
-            totalItems: products.length,
-            products: products
-        };
-        const jsonStr = JSON.stringify(exportData, null, 2);
-        const blob = new Blob([jsonStr], { type: 'application/json' });
+        const blob = new Blob([JSON.stringify(products, null, 2)], { type: 'application/json' });
         saveAs(blob, `inventory_${new Date().toISOString().slice(0,19).replace(/:/g, '-')}.json`);
-        showToast(`匯出 ${products.length} 筆資料成功`);
+        showToast(`匯出 ${products.length} 筆資料`);
     }
     
     async function importData(file) {
         const reader = new FileReader();
         reader.onload = async (e) => {
             try {
-                const data = JSON.parse(e.target.result);
-                let products = data.products || (Array.isArray(data) ? data : []);
-                if (products.length === 0) {
-                    showToast('檔案中沒有貨品資料');
-                    return;
-                }
-                
-                const currentCount = await db.products.count();
-                if (currentCount > 0 && !confirm(`目前有 ${currentCount} 筆資料，匯入將覆蓋所有資料，確定繼續？`)) {
-                    return;
-                }
-                
+                const products = JSON.parse(e.target.result);
+                if (!confirm(`匯入將覆蓋現有 ${await db.products.count()} 筆資料，確定繼續？`)) return;
                 await db.products.clear();
-                const cleanProducts = products.map(({ id, ...rest }) => ({
-                    ...rest,
-                    updatedAt: new Date().toISOString(),
-                    createdAt: rest.createdAt || new Date().toISOString()
-                }));
+                const cleanProducts = products.map(({ id, ...rest }) => rest);
                 await db.products.bulkAdd(cleanProducts);
                 showToast(`成功匯入 ${cleanProducts.length} 筆資料`);
                 loadProductList();
                 updateStats();
-                resetForm();
             } catch (err) {
-                console.error('匯入失敗:', err);
-                showToast('檔案格式錯誤，請確認是正確的 JSON 檔案');
+                showToast('檔案格式錯誤');
             }
         };
         reader.readAsText(file);
     }
     
-    // ==================== 頁籤切換 ====================
-    function switchTab(tabId) {
-        document.querySelectorAll('.tab-content').forEach(content => {
-            content.classList.remove('active');
-        });
-        document.querySelectorAll('.tab').forEach(tab => {
-            tab.classList.remove('active');
-        });
-        
-        document.getElementById(`tab-${tabId}`).classList.add('active');
-        document.querySelector(`.tab[data-tab="${tabId}"]`).classList.add('active');
-        
-        if (tabId === 'list') {
+    async function clearAllData() {
+        if (confirm('⚠️ 確定清除所有資料？')) {
+            await db.products.clear();
+            showToast('已清除所有資料');
             loadProductList();
             updateStats();
-        }
-        if (tabId === 'settings') {
-            updateStats();
+            resetForm();
         }
     }
-    
-    // ==================== 事件綁定 ====================
+
+    function switchTab(tabId) {
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.getElementById(`tab-${tabId}`).classList.add('active');
+        document.querySelector(`.tab[data-tab="${tabId}"]`).classList.add('active');
+        if (tabId === 'list') { loadProductList(); updateStats(); }
+        if (tabId === 'settings') { updateStats(); }
+    }
+
+    // 事件綁定
     document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.tab').forEach(tab => {
-            tab.addEventListener('click', () => {
-                const tabId = tab.getAttribute('data-tab');
-                switchTab(tabId);
-            });
+            tab.addEventListener('click', () => switchTab(tab.getAttribute('data-tab')));
         });
         
-        const startBtn = document.getElementById('startScannerBtn');
-        const stopBtn = document.getElementById('stopScannerBtn');
-        if (startBtn) startBtn.addEventListener('click', startScanner);
-        if (stopBtn) stopBtn.addEventListener('click', stopScanner);
-        
-        const productForm = document.getElementById('productForm');
-        if (productForm) {
-            productForm.addEventListener('submit', (e) => {
-                e.preventDefault();
-                handleSave();
-            });
-        }
-        
-        const cancelBtn = document.getElementById('cancelBtn');
-        if (cancelBtn) cancelBtn.addEventListener('click', resetForm);
-        
-        const deleteBtn = document.getElementById('deleteBtn');
-        if (deleteBtn) {
-            deleteBtn.addEventListener('click', async () => {
-                if (currentProduct) {
-                    await deleteProduct(currentProduct.id);
-                    loadProductList();
-                }
-            });
-        }
-        
-        const exportBtn = document.getElementById('exportBtn');
-        if (exportBtn) exportBtn.addEventListener('click', exportData);
-        
-        const importFile = document.getElementById('importFile');
-        if (importFile) {
-            importFile.addEventListener('change', (e) => {
-                if (e.target.files.length > 0) {
-                    importData(e.target.files[0]);
-                    e.target.value = '';
-                }
-            });
-        }
-        
-        const clearAllBtn = document.getElementById('clearAllBtn');
-        if (clearAllBtn) clearAllBtn.addEventListener('click', clearAllData);
-        
-        const searchInput = document.getElementById('searchInput');
-        if (searchInput) {
-            searchInput.addEventListener('input', () => {
-                loadProductList();
-            });
-        }
+        document.getElementById('startScannerBtn').addEventListener('click', startScanner);
+        document.getElementById('stopScannerBtn').addEventListener('click', stopScanner);
+        document.getElementById('productForm').addEventListener('submit', (e) => { e.preventDefault(); handleSave(); });
+        document.getElementById('cancelBtn').addEventListener('click', resetForm);
+        document.getElementById('deleteBtn').addEventListener('click', async () => { if (currentProduct) await deleteProduct(currentProduct.id); });
+        document.getElementById('exportBtn').addEventListener('click', exportData);
+        document.getElementById('importFile').addEventListener('change', (e) => { if (e.target.files[0]) importData(e.target.files[0]); e.target.value = ''; });
+        document.getElementById('clearAllBtn').addEventListener('click', clearAllData);
+        document.getElementById('searchInput').addEventListener('input', () => loadProductList());
         
         updateStats();
         showToast('歡迎使用！點擊「啟動掃描器」開始');
