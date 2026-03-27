@@ -577,7 +577,6 @@
         formCard.style.display = 'block';
         document.getElementById('scanHint').style.display = 'none';
         
-        // 自動聚焦到名稱欄位
         setTimeout(() => document.getElementById('name').focus(), 100);
     }
 
@@ -588,7 +587,6 @@
         currentBarcode = null;
     }
 
-    // 儲存表單
     async function handleSave() {
         const name = document.getElementById('name').value.trim();
         if (!name) {
@@ -610,7 +608,6 @@
             loadProductList();
             resetForm();
         } else {
-            // 檢查是否已存在相同條碼
             const existing = await getProductByBarcode(productData.barcode);
             if (existing) {
                 showToast('此條碼已有貨品，請編輯或使用不同條碼');
@@ -623,13 +620,10 @@
         updateStats();
     }
 
-    // 掃描成功處理
     async function onScanSuccess(decodedText) {
         if (!isScannerRunning) return;
         
         console.log('掃描到:', decodedText);
-        
-        // 震動回饋
         if (navigator.vibrate) navigator.vibrate(100);
         
         const existingProduct = await getProductByBarcode(decodedText);
@@ -671,7 +665,7 @@
             { facingMode: "environment" },
             config,
             onScanSuccess,
-            (error) => { /* 靜默處理錯誤 */ }
+            (error) => {}
         ).then(() => {
             isScannerRunning = true;
             document.getElementById('startScannerBtn').style.display = 'none';
@@ -762,7 +756,6 @@
         }
     };
     
-    // 更新統計資訊
     async function updateStats() {
         const count = await db.products.count();
         const products = await db.products.toArray();
@@ -850,7 +843,6 @@
     
     // ==================== 事件綁定 ====================
     document.addEventListener('DOMContentLoaded', () => {
-        // 頁籤切換
         document.querySelectorAll('.tab').forEach(tab => {
             tab.addEventListener('click', () => {
                 const tabId = tab.getAttribute('data-tab');
@@ -858,13 +850,11 @@
             });
         });
         
-        // 掃描器控制
         const startBtn = document.getElementById('startScannerBtn');
         const stopBtn = document.getElementById('stopScannerBtn');
         if (startBtn) startBtn.addEventListener('click', startScanner);
         if (stopBtn) stopBtn.addEventListener('click', stopScanner);
         
-        // 表單操作
         const productForm = document.getElementById('productForm');
         if (productForm) {
             productForm.addEventListener('submit', (e) => {
@@ -886,7 +876,6 @@
             });
         }
         
-        // 設定頁操作
         const exportBtn = document.getElementById('exportBtn');
         if (exportBtn) exportBtn.addEventListener('click', exportData);
         
@@ -903,7 +892,6 @@
         const clearAllBtn = document.getElementById('clearAllBtn');
         if (clearAllBtn) clearAllBtn.addEventListener('click', clearAllData);
         
-        // 搜尋
         const searchInput = document.getElementById('searchInput');
         if (searchInput) {
             searchInput.addEventListener('input', () => {
@@ -911,9 +899,7 @@
             });
         }
         
-        // 初始化統計
         updateStats();
-        
         showToast('歡迎使用！點擊「啟動掃描器」開始');
     });
 </script>
