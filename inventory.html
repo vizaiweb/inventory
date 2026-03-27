@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+    <title>庫存管理系統 - 條碼掃描</title>
+    <!-- 引入 html5-qrcode 掃描庫 -->
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <!-- 引入 Dexie.js (IndexedDB 封裝) -->
+    <script src="https://unpkg.com/dexie@3.2.4/dist/dexie.js"></script>
+    <!-- 引入 FileSaver.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: #f5f5f5;
+            padding-bottom: 80px;
+        }
+
+        /* 掃描器區塊 */
+        .scanner-container {
+            background: #000;
+            position: relative;
+            min-height: 350px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #reader {
+            width: 100%;
+            background: #000;
+        }
+
+        .scanner-controls {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            text-align: center;
+            z-index: 10;
+        }
+
+        .btn-scanner {
+            background: rgba(0,0,0,0.7);
+            color: white;
+            border: 1px solid white;
+            padding: 8px 20px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        /* 主要內容區 */
+        .content {
+            padding: 16px;
+        }
+
+        /* 卡片樣式 */
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        .card-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: #333;
+            border-left: 4px solid #007aff;
+            padding-left: 12px;
+        }
+
+        /* 表單 */
+        .form-group {
+            margin-bottom: 12px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 4px;
+        }
+
+        .form-group input, .form-group textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            font-family: inherit;
+        }
+
+        .form-group input:focus, .form-group textarea:focus {
+            outline: none;
+            border-color: #007aff;
+        }
+
+        /* 按鈕 */
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        .btn:active {
+            opacity: 0.7;
+        }
+
+        .btn-primary {
+            background: #007aff;
+            color: white;
+        }
+
+        .btn-success {
+            background: #34c759;
+            color: white;
+        }
+
+        .btn-danger {
+            background: #ff3b30;
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #8e8e93;
+            color: white;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        /* 貨品列表 */
+        .product-item {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .product-info {
+            flex: 1;
+        }
+
+        .product-name {
+            font-weight: 600;
+            font-size: 16px;
+        }
+
+        .product-barcode {
+            font-size: 12px;
+            color: #666;
+            font-family: monospace;
+        }
+
+        .product-meta {
+            font-size: 12px;
+            color: #999;
+            margin-top: 4px;
+        }
+
+        .product-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .icon-btn {
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            padding: 4px;
+        }
+
+        /* 提示訊息 */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 25px;
+            font-size: 14px;
+            z-index: 1000;
+            animation: fadeInOut 2s ease;
+        }
+
+        @keyframes fadeInOut {
+            0% { opacity: 0; transform: translateX(-50%) translateY(20px); }
+            15% { opacity: 1; transform: translateX(-50%) translateY(0); }
+            85% { opacity: 1; transform: translateX(-50%) translateY(0); }
+            100% { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+        }
+
+        /* 標籤 */
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            background: #e9ecef;
+            color: #495057;
+        }
+
+        /* 空狀態 */
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+
+        /* 頁籤 */
+        .tabs {
+            display: flex;
+            background: white;
+            border-bottom: 1px solid #ddd;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .tab {
+            flex: 1;
+            text-align: center;
+            padding: 12px;
+            cursor: pointer;
+            font-weight: 500;
+            color: #666;
+            transition: all 0.2s;
+        }
+
+        .tab.active {
+            color: #007aff;
+            border-bottom: 2px solid #007aff;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* 搜尋框 */
+        .search-box {
+            margin-bottom: 12px;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+
+        /* 響應式 */
+        @media (max-width: 480px) {
+            .content {
+                padding: 12px;
+            }
+            
+            .btn {
+                padding: 8px 16px;
+                font-size: 14px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<!-- 頁籤導航 -->
+<div class="tabs">
+    <div class="tab active" data-tab="scan">📷 掃描</div>
+    <div class="tab" data-tab="list">📋 貨品清單</div>
+    <div class="tab" data-tab="settings">⚙️ 設定</div>
+</div>
+
+<!-- 掃描頁 -->
+<div class="tab-content active" id="tab-scan">
+    <div class="scanner-container">
+        <div id="reader"></div>
+        <div class="scanner-controls">
+            <button class="btn-scanner" id="startScannerBtn">▶ 啟動掃描器</button>
+            <button class="btn-scanner" id="stopScannerBtn" style="display:none;">⏸ 停止掃描</button>
+        </div>
+    </div>
+    
+    <div class="content">
+        <!-- 掃描結果/貨品編輯區 -->
+        <div class="card" id="productFormCard" style="display:none;">
+            <div class="card-title" id="formTitle">新增貨品</div>
+            <form id="productForm">
+                <div class="form-group">
+                    <label>📦 條碼 / QR Code</label>
+                    <input type="text" id="barcode" readonly style="background:#f5f5f5;">
+                </div>
+                <div class="form-group">
+                    <label>🏷️ 貨品名稱 *</label>
+                    <input type="text" id="name" required placeholder="輸入貨品名稱">
+                </div>
+                <div class="form-group">
+                    <label>💰 價格</label>
+                    <input type="number" id="price" step="0.01" placeholder="0.00">
+                </div>
+                <div class="form-group">
+                    <label>📊 數量</label>
+                    <input type="number" id="quantity" value="1" placeholder="數量">
+                </div>
+                <div class="form-group">
+                    <label>📝 備註</label>
+                    <textarea id="remark" rows="2" placeholder="其他說明"></textarea>
+                </div>
+                <div class="btn-group">
+                    <button type="submit" class="btn btn-primary" id="saveBtn">💾 儲存貨品</button>
+                    <button type="button" class="btn btn-secondary" id="cancelBtn">取消</button>
+                    <button type="button" class="btn btn-danger" id="deleteBtn" style="display:none;">🗑 刪除</button>
+                </div>
+            </form>
+        </div>
+        
+        <!-- 掃描提示 -->
+        <div class="card" id="scanHint">
+            <div style="text-align:center; color:#666;">
+                📱 點擊「啟動掃描器」，將鏡頭對準條碼或 QR Code
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 貨品清單頁 -->
+<div class="tab-content" id="tab-list">
+    <div class="content">
+        <div class="card">
+            <div class="card-title">📋 所有貨品</div>
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="🔍 搜尋貨品名稱或條碼...">
+            </div>
+            <div id="productList"></div>
+        </div>
+    </div>
+</div>
+
+<!-- 設定頁 -->
+<div class="tab-content" id="tab-settings">
+    <div class="content">
+        <div class="card">
+            <div class="card-title">💾 資料管理</div>
+            <div class="btn-group" style="flex-direction: column;">
+                <button class="btn btn-primary" id="exportBtn">📤 匯出 JSON 備份</button>
+                <label class="btn btn-secondary" style="text-align:center; cursor:pointer;">
+                    📥 匯入 JSON 檔案
+                    <input type="file" id="importFile" accept=".json" style="display:none;">
+                </label>
+                <button class="btn btn-danger" id="clearAllBtn">⚠️ 清除所有資料</button>
+            </div>
+            <div style="margin-top: 16px; font-size: 12px; color: #999;">
+                <div>📊 資料統計</div>
+                <div id="statsInfo">載入中...</div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-title">ℹ️ 使用說明</div>
+            <div style="font-size: 14px; line-height: 1.6; color: #666;">
+                • 點擊「啟動掃描器」並允許鏡頭權限<br>
+                • 掃描條碼/QR Code 後自動查詢或新增<br>
+                • 所有資料儲存在手機瀏覽器中<br>
+                • 可匯出 JSON 備份，或匯入還原資料<br>
+                • 支援離線使用，資料不會上傳雲端
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ==================== 初始化 IndexedDB ====================
+    const db = new Dexie('InventoryDB');
+    db.version(1).stores({
+        products: '++id, barcode, name, price, quantity, remark, createdAt, updatedAt'
+    });
+
+    // 全域變數
+    let html5QrCodeScanner = null;
+    let currentProduct = null;      // 當前正在編輯的貨品
+    let currentBarcode = null;      // 當前掃描的條碼
+    let isScannerRunning = false;
+
+    // ==================== 工具函數 ====================
+    function showToast(message) {
+        const toast = document.createElement('div');
+        toast.className = 'toast';
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 2000);
+    }
+
+    function formatDate(dateStr) {
+        if (!dateStr) return '';
+        const date = new Date(dateStr);
+        return `${date.getMonth()+1}/${date.getDate()} ${date.getHours()}:${String(date.getMinutes()).padStart(2,'0')}`;
+    }
+
+    // ==================== 貨品 CRUD ====================
+    async function addProduct(product) {
+        const now = new Date().toISOString();
+        const id = await db.products.add({
+            ...product,
+            createdAt: now,
+            updatedAt: now
+        });
+        showToast('✅ 新增成功');
+        return id;
+    }
+
+    async function updateProduct(id, updates) {
+        await db.products.update(id, {
+            ...updates,
+            updatedAt: new Date().toISOString()
+        });
+        showToast('✏️ 更新成功');
+    }
+
+    async function deleteProduct(id) {
+        if (confirm('確定要刪除這個貨品嗎？')) {
+            await db.products.delete(id);
+            showToast('🗑 刪除成功');
+            resetForm();
+            loadProductList();
+            updateStats();
+        }
+    }
+
+    async function getProductByBarcode(barcode) {
+        return await db.products.where('barcode').equals(barcode).first();
+    }
+
+    async function getAllProducts() {
+        return await db.products.toArray();
+    }
+
+    async function searchProducts(keyword) {
+        if (!keyword) return await getAllProducts();
+        const products = await db.products.toArray();
+        return products.filter(p => 
+            p.name?.toLowerCase().includes(keyword.toLowerCase()) || 
+            p.barcode?.toLowerCase().includes(keyword.toLowerCase())
+        );
+    }
+
+    async function clearAllData() {
+        if (confirm('⚠️ 確定要清除所有貨品資料嗎？此操作無法復原！')) {
+            await db.products.clear();
+            showToast('已清除所有資料');
+            loadProductList();
+            updateStats();
+            resetForm();
+        }
+    }
+
+    // 顯示貨品編輯表單
+    function showProductForm(product, barcode) {
+        const formCard = document.getElementById('productFormCard');
+        const formTitle = document.getElementById('formTitle');
+        const deleteBtn = document.getElementById('deleteBtn');
+        
+        if (product) {
+            // 編輯模式
+            formTitle.textContent = '✏️ 編輯貨品';
+            document.getElementById('barcode').value = product.barcode;
+            document.getElementById('name').value = product.name || '';
+            document.getElementById('price').value = product.price || '';
+            document.getElementById('quantity').value = product.quantity || 0;
+            document.getElementById('remark').value = product.remark || '';
+            deleteBtn.style.display = 'inline-block';
+            currentProduct = product;
+            currentBarcode = product.barcode;
+        } else {
+            // 新增模式
+            formTitle.textContent = '➕ 新增貨品';
+            document.getElementById('barcode').value = barcode;
+            document.getElementById('name').value = '';
+            document.getElementById('price').value = '';
+            document.getElementById('quantity').value = 1;
+            document.getElementById('remark').value = '';
+            deleteBtn.style.display = 'none';
+            currentProduct = null;
+            currentBarcode = barcode;
+        }
+        
+        formCard.style.display = 'block';
+        document.getElementById('scanHint').style.display = 'none';
+    }
+
+    function resetForm() {
+        document.getElementById('productFormCard').style.display = 'none';
+        document.getElementById('scanHint').style.display = 'block';
+        currentProduct = null;
+        currentBarcode = null;
+    }
+
+    // 儲存表單
+    async function handleSave() {
+        const name = document.getElementById('name').value.trim();
+        if (!name) {
+            showToast('請輸入貨品名稱');
+            return;
+        }
+        
+        const productData = {
+            barcode: document.getElementById('barcode').value,
+            name: name,
+            price: parseFloat(document.getElementById('price').value) || 0,
+            quantity: parseInt(document.getElementById('quantity').value) || 0,
+            remark: document.getElementById('remark').value
+        };
+        
+        if (currentProduct) {
+            // 更新
+            await updateProduct(currentProduct.id, productData);
+            loadProductList();
+            resetForm();
+        } else {
+            // 新增
+            await addProduct(productData);
+            loadProductList();
+            resetForm();
+        }
+        updateStats();
+    }
+
+    // 掃描成功後的處理
+    async function onScanSuccess(decodedText, decodedResult) {
+        if (!isScannerRunning) return;
+        
+        console.log('掃描到:', decodedText);
+        
+        // 震動回饋（如果支援）
+        if (navigator.vibrate) navigator.vibrate(100);
+        
+        const existingProduct = await getProductByBarcode(decodedText);
+        
+        if (existingProduct) {
+            showToast(`📦 找到貨品: ${existingProduct.name}`);
+            showProductForm(existingProduct, decodedText);
+        } else {
+            showToast(`🆕 新貨品，請填寫資訊`);
+            showProductForm(null, decodedText);
+        }
+    }
+
+    function onScanError(error) {
+        // 掃描錯誤通常不需要顯示，避免干擾
+        // console.warn(error);
+    }
+
+    // ==================== 掃描器控制 ====================
+    function startScanner() {
+        if (html5QrCodeScanner) {
+            html5QrCodeScanner.clear().then(() => {
+                initScanner();
+            });
+        } else {
+            initScanner();
+        }
+    }
+    
+    function initScanner() {
+        html5QrCodeScanner = new Html5Qrcode("reader");
+        const config = {
+            fps: 10,
+            qrbox: { width: 250, height: 250 },
+            aspectRatio: 1.0,
+            formatsToSupport: [ Html5QrcodeSupportedFormats.QR_CODE, Html5QrcodeSupportedFormats.CODE_128, Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.EAN_8, Html5QrcodeSupportedFormats.UPC_A, Html5QrcodeSupportedFormats.CODE_39 ]
+        };
+        
+        html5QrCodeScanner.start(
+            { facingMode: "environment" },  // 使用後置鏡頭
+            config,
+            onScanSuccess,
+            onScanError
+        ).then(() => {
+            isScannerRunning = true;
+            document.getElementById('startScannerBtn').style.display = 'none';
+            document.getElementById('stopScannerBtn').style.display = 'inline-block';
+            showToast('📷 掃描器已啟動');
+        }).catch(err => {
+            console.error('啟動掃描器失敗:', err);
+            showToast('無法啟動掃描器，請確認已允許鏡頭權限');
+        });
+    }
+    
+    function stopScanner() {
+        if (html5QrCodeScanner && isScannerRunning) {
+            html5QrCodeScanner.stop().then(() => {
+                isScannerRunning = false;
+                document.getElementById('startScannerBtn').style.display = 'inline-block';
+                document.getElementById('stopScannerBtn').style.display = 'none';
+                showToast('掃描器已停止');
+            }).catch(err => {
+                console.error('停止掃描器失敗:', err);
+            });
+        }
+    }
+
+    // ==================== 貨品列表渲染 ====================
+    async function loadProductList() {
+        const searchKeyword = document.getElementById('searchInput')?.value || '';
+        const products = await searchProducts(searchKeyword);
+        const container = document.getElementById('productList');
+        
+        if (products.length === 0) {
+            container.innerHTML = '<div class="empty-state">📭 暫無貨品資料<br>請先掃描條碼新增</div>';
+            return;
+        }
+        
+        container.innerHTML = products.map(p => `
+            <div class="product-item">
+                <div class="product-info">
+                    <div class="product-name">${escapeHtml(p.name || '無名稱')}</div>
+                    <div class="product-barcode">📷 ${escapeHtml(p.barcode || '無條碼')}</div>
+                    <div class="product-meta">
+                        💰 $${p.price || 0} &nbsp;|&nbsp;
+                        📦 數量: ${p.quantity || 0}
+                        ${p.remark ? `&nbsp;|&nbsp;📝 ${escapeHtml(p.remark.substring(0, 20))}` : ''}
+                    </div>
+                </div>
+                <div class="product-actions">
+                    <button class="icon-btn" onclick="editProductById(${p.id})" title="編輯">✏️</button>
+                    <button class="icon-btn" onclick="deleteProductById(${p.id})" title="刪除">🗑️</button>
+                </div>
+            </div>
+        `).join('');
+    }
+    
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str.replace(/[&<>]/g, function(m) {
+            if (m === '&') return '&amp;';
+            if (m === '<') return '&lt;';
+            if (m === '>') return '&gt;';
+            return m;
+        });
+    }
+    
+    window.editProductById = async function(id) {
+        const product = await db.products.get(id);
+        if (product) {
+            // 切換到掃描頁籤
+            switchTab('scan');
+            showProductForm(product, product.barcode);
+        }
+    };
+    
+    window.deleteProductById = async function(id) {
+        if (confirm('確定刪除此貨品？')) {
+            await db.products.delete(id);
+            showToast('已刪除');
+            loadProductList();
+            updateStats();
+            resetForm();
+        }
+    };
+    
+    // 更新統計資訊
+    async function updateStats() {
+        const count = await db.products.count();
+        const products = await db.products.toArray();
+        const totalValue = products.reduce((sum, p) => sum + (p.price || 0) * (p.quantity || 0), 0);
+        document.getElementById('statsInfo').innerHTML = `
+            總貨品數: ${count} 項<br>
+            總價值: $${totalValue.toFixed(2)}
+        `;
+    }
+    
+    // ==================== 匯出/匯入 ====================
+    async function exportData() {
+        const products = await getAllProducts();
+        const exportData = {
+            version: "1.0",
+            exportDate: new Date().toISOString(),
+            products: products
+        };
+        const jsonStr = JSON.stringify(exportData, null, 2);
+        const blob = new Blob([jsonStr], { type: 'application/json' });
+        saveAs(blob, `inventory_backup_${new Date().toISOString().slice(0,19).replace(/:/g, '-')}.json`);
+        showToast('匯出成功');
+    }
+    
+    async function importData(file) {
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            try {
+                const data = JSON.parse(e.target.result);
+                let products = data.products || (Array.isArray(data) ? data : []);
+                if (products.length === 0) {
+                    showToast('檔案中沒有貨品資料');
+                    return;
+                }
+                
+                if (confirm(`匯入將覆蓋現有 ${await db.products.count()} 筆資料，確定繼續？`)) {
+                    await db.products.clear();
+                    // 移除 id，讓資料庫重新產生
+                    const cleanProducts = products.map(({ id, ...rest }) => ({
+                        ...rest,
+                        updatedAt: new Date().toISOString(),
+                        createdAt: rest.createdAt || new Date().toISOString()
+                    }));
+                    await db.products.bulkAdd(cleanProducts);
+                    showToast(`成功匯入 ${cleanProducts.length} 筆資料`);
+                    loadProductList();
+                    updateStats();
+                    resetForm();
+                }
+            } catch (err) {
+                console.error('匯入失敗:', err);
+                showToast('檔案格式錯誤，請確認是正確的 JSON 檔案');
+            }
+        };
+        reader.readAsText(file);
+    }
+    
+    // ==================== 頁籤切換 ====================
+    function switchTab(tabId) {
+        // 隱藏所有 tab 內容
+        document.querySelectorAll('.tab-content').forEach(content => {
+            content.classList.remove('active');
+        });
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.classList.remove('active');
+        });
+        
+        // 顯示選中的 tab
+        document.getElementById(`tab-${tabId}`).classList.add('active');
+        document.querySelector(`.tab[data-tab="${tabId}"]`).classList.add('active');
+        
+        // 切換到清單頁時重新載入
+        if (tabId === 'list') {
+            loadProductList();
+        }
+        if (tabId === 'settings') {
+            updateStats();
+        }
+        if (tabId === 'scan') {
+            // 保持掃描器狀態
+        }
+    }
+    
+    // ==================== 事件綁定 ====================
+    document.addEventListener('DOMContentLoaded', () => {
+        // 頁籤切換
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                const tabId = tab.getAttribute('data-tab');
+                switchTab(tabId);
+            });
+        });
+        
+        // 掃描器控制
+        document.getElementById('startScannerBtn').addEventListener('click', startScanner);
+        document.getElementById('stopScannerBtn').addEventListener('click', stopScanner);
+        
+        // 表單操作
+        document.getElementById('productForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            handleSave();
+        });
+        document.getElementById('cancelBtn').addEventListener('click', resetForm);
+        document.getElementById('deleteBtn').addEventListener('click', async () => {
+            if (currentProduct) {
+                await deleteProduct(currentProduct.id);
+                loadProductList();
+            }
+        });
+        
+        // 設定頁操作
+        document.getElementById('exportBtn').addEventListener('click', exportData);
+        document.getElementById('importFile').addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                importData(e.target.files[0]);
+                e.target.value = '';
+            }
+        });
+        document.getElementById('clearAllBtn').addEventListener('click', clearAllData);
+        
+        // 搜尋
+        document.getElementById('searchInput').addEventListener('input', () => {
+            loadProductList();
+        });
+        
+        // 初始化統計
+        updateStats();
+        
+        // 自動嘗試啟動掃描器（需要用戶點擊，因為瀏覽器權限限制）
+        showToast('請點擊「啟動掃描器」並允許鏡頭權限');
+    });
+</script>
+</body>
+</html>
