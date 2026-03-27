@@ -24,6 +24,7 @@
             background: #000;
             position: relative;
             padding: 20px 0;
+            min-height: 350px;
         }
 
         #reader {
@@ -52,6 +53,11 @@
 
         .btn-scanner:active {
             transform: scale(0.96);
+        }
+
+        .btn-scanner:disabled {
+            opacity: 0.5;
+            transform: none;
         }
 
         .content {
@@ -117,6 +123,7 @@
             font-size: 16px;
             font-weight: 600;
             cursor: pointer;
+            transition: opacity 0.2s;
         }
 
         .btn-primary {
@@ -131,6 +138,11 @@
 
         .btn-danger {
             background: #ff3b30;
+            color: white;
+        }
+
+        .btn-success {
+            background: #34c759;
             color: white;
         }
 
@@ -298,6 +310,14 @@
             font-family: monospace;
             font-size: 14px;
             word-break: break-all;
+            font-weight: 500;
+        }
+
+        .scanner-status {
+            text-align: center;
+            padding: 8px;
+            font-size: 12px;
+            color: #999;
         }
     </style>
 </head>
@@ -317,6 +337,7 @@
             <button class="btn-scanner" id="startScannerBtn">▶ 啟動掃描器</button>
             <button class="btn-scanner" id="stopScannerBtn" style="display:none;">⏸ 停止掃描</button>
         </div>
+        <div class="scanner-status" id="scannerStatus">⚪ 掃描器未啟動</div>
     </div>
     
     <div class="content">
@@ -354,6 +375,7 @@
                     <button type="submit" class="btn btn-primary" id="saveBtn">💾 儲存</button>
                     <button type="button" class="btn btn-secondary" id="cancelBtn">取消</button>
                     <button type="button" class="btn btn-danger" id="deleteBtn" style="display:none;">🗑 刪除</button>
+                    <button type="button" class="btn btn-success" id="scanAgainBtn" style="display:none;">📷 掃描下一筆</button>
                 </div>
             </form>
         </div>
@@ -364,6 +386,7 @@
                 <div style="font-size: 48px; margin-bottom: 12px;">📱</div>
                 <div style="font-weight: 500; margin-bottom: 8px;">點擊「啟動掃描器」</div>
                 <div style="font-size: 14px; color: #999;">將鏡頭對準條碼或 QR Code</div>
+                <div style="font-size: 12px; color: #ccc; margin-top: 12px;">掃描成功後會自動停止鏡頭，讓您填寫資料</div>
             </div>
         </div>
     </div>
@@ -410,10 +433,12 @@
                 <p>📌 <strong>掃描流程</strong><br>
                 1. 點擊「啟動掃描器」並允許鏡頭權限<br>
                 2. 將鏡頭對準條碼/QR Code<br>
-                3. 系統會自動查詢資料庫：<br>
-                &nbsp;&nbsp;• <span style="color:#34c759;">✅ 有相同條碼</span> → 開啟該貨品資料（可編輯）<br>
-                &nbsp;&nbsp;• <span style="color:#007aff;">🆕 無相同條碼</span> → 開啟新增表單（條碼已自動填入）<br>
-                4. 填寫貨品資訊後點擊「儲存」</p>
+                3. 掃描成功後鏡頭會自動停止<br>
+                4. 系統會自動查詢資料庫：<br>
+                &nbsp;&nbsp;• <span style="color:#34c759;">✅ 有相同條碼</span> → 開啟該貨品資料<br>
+                &nbsp;&nbsp;• <span style="color:#007aff;">🆕 無相同條碼</span> → 開啟新增表單<br>
+                5. 填寫/確認貨品資訊後點擊「儲存」<br>
+                6. 點擊「掃描下一筆」繼續掃描其他貨品</p>
                 
                 <p>📌 <strong>編輯貨品</strong><br>
                 在「貨品清單」點擊貨品即可編輯</p>
@@ -435,6 +460,7 @@
     let html5QrCodeScanner = null;
     let currentProduct = null;
     let isScannerRunning = false;
+    let isScanningPaused = false;
 
     function showToast(message) {
         const existingToast = document.querySelector('.toast');
@@ -445,6 +471,39 @@
         toast.textContent = message;
         document.body.appendChild(toast);
         setTimeout(() => toast.remove(), 2000);
+    }
+
+    // 更新掃描器狀態顯示
+    function updateScannerStatus(status, isActive) {
+        const statusDiv = document.getElementById('scannerStatus');
+        const startBtn = document.getElementById('startScannerBtn');
+        const stopBtn = document.getElementById('stopScannerBtn');
+        
+        if (isActive) {
+            statusDiv.innerHTML = '🟢 掃描器中... 請對準條碼';
+            statusDiv.style.color = '#34c759';
+            startBtn.style.display = 'none';
+            stopBtn.style.display = 'inline-block';
+        } else {
+            statusDiv.innerHTML = '⚪ 掃描器已停止';
+            statusDiv.style.color = '#999';
+            startBtn.style.display = 'inline-block';
+            stopBtn.style.display = 'none';
+        }
+    }
+
+    // 停止掃描器並釋放資源
+    async function stopScannerAndRelease() {
+        if (html5QrCodeScanner && isScannerRunning) {
+            try {
+                await html5QrCodeScanner.stop();
+                isScannerRunning = false;
+                updateScannerStatus('stopped', false);
+                console.log('掃描器已停止並釋放資源');
+            } catch (err) {
+                console.error('停止掃描器失敗:', err);
+            }
+        }
     }
 
     // 根據條碼查詢貨品
@@ -488,6 +547,7 @@
         const formCard = document.getElementById('productFormCard');
         const formTitle = document.getElementById('formTitle');
         const deleteBtn = document.getElementById('deleteBtn');
+        const scanAgainBtn = document.getElementById('scanAgainBtn');
         const lastScanDiv = document.getElementById('lastScanDisplay');
         
         // 顯示最後掃描的條碼
@@ -516,6 +576,8 @@
             currentProduct = null;
         }
         
+        // 顯示掃描下一筆按鈕
+        scanAgainBtn.style.display = 'block';
         formCard.style.display = 'block';
         document.getElementById('scanHint').style.display = 'none';
         setTimeout(() => document.getElementById('name').focus(), 100);
@@ -525,6 +587,7 @@
         document.getElementById('productFormCard').style.display = 'none';
         document.getElementById('scanHint').style.display = 'block';
         document.getElementById('lastScanDisplay').style.display = 'none';
+        document.getElementById('scanAgainBtn').style.display = 'none';
         currentProduct = null;
     }
 
@@ -546,86 +609,123 @@
         };
         
         if (currentProduct) {
-            // 更新已存在的貨品
             await updateProduct(currentProduct.id, productData);
             loadProductList();
-            resetForm();
         } else {
-            // 新增貨品（條碼已經在掃描時寫入）
             await addProduct(productData);
             loadProductList();
-            resetForm();
         }
         updateStats();
+        
+        // 儲存後顯示成功訊息，但不自動關閉表單，讓用戶決定是否繼續掃描
+        showToast('儲存完成！可點擊「掃描下一筆」繼續');
+    }
+
+    // 重新啟動掃描器（用於掃描下一筆）
+    async function restartScanner() {
+        // 先關閉表單
+        resetForm();
+        
+        // 確保之前的掃描器已完全停止
+        await stopScannerAndRelease();
+        
+        // 等待一下讓資源釋放
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        // 重新初始化掃描器
+        html5QrCodeScanner = null;
+        isScannerRunning = false;
+        
+        // 啟動新掃描器
+        await initScanner();
     }
 
     // ⭐ 核心功能：掃描條碼後的處理
     async function onScanSuccess(decodedText) {
-        if (!isScannerRunning) return;
+        // 防止重複觸發
+        if (!isScannerRunning || isScanningPaused) return;
         
         console.log('📷 掃描到條碼:', decodedText);
+        
+        // 立即停止掃描器，讓用戶專心填寫資料
+        isScanningPaused = true;
+        await stopScannerAndRelease();
         
         // 震動回饋
         if (navigator.vibrate) navigator.vibrate(100);
         
-        // 🔍 步驟1：記錄該 code 的 number
-        const scannedCode = decodedText;
+        // 查詢資料庫是否有相同條碼
+        const existingProduct = await getProductByBarcode(decodedText);
         
-        // 🔍 步驟2：查詢資料庫是否有相同條碼
-        const existingProduct = await getProductByBarcode(scannedCode);
-        
-        // 🔍 步驟3：比對結果
         if (existingProduct) {
-            // ✅ 有相同條碼 → 打開該貨品已儲存的資料
             showToast(`📦 找到貨品: ${existingProduct.name}`);
-            showProductForm(existingProduct, scannedCode);
+            showProductForm(existingProduct, decodedText);
         } else {
-            // ✅ 沒有相同條碼 → 新增貨品，並自動寫入該條碼
             showToast(`🆕 新條碼，請填寫貨品資訊`);
-            showProductForm(null, scannedCode);
+            showProductForm(null, decodedText);
+        }
+        
+        // 重置暫停標誌，但掃描器已經停止，需要用戶手動重啟
+        isScanningPaused = false;
+    }
+
+    // 初始化掃描器
+    async function initScanner() {
+        const readerElement = document.getElementById("reader");
+        if (!readerElement) {
+            console.error('找不到 reader 元素');
+            return;
+        }
+        
+        // 清空 reader 內容
+        readerElement.innerHTML = '';
+        
+        try {
+            html5QrCodeScanner = new Html5Qrcode("reader");
+            const config = {
+                fps: 10,
+                qrbox: { width: 280, height: 280 },
+                aspectRatio: 1.0
+            };
+            
+            await html5QrCodeScanner.start(
+                { facingMode: "environment" },
+                config,
+                onScanSuccess,
+                (error) => {
+                    // 靜默處理錯誤，避免干擾用戶
+                    // console.debug('掃描錯誤:', error);
+                }
+            );
+            
+            isScannerRunning = true;
+            updateScannerStatus('running', true);
+            showToast('📷 掃描器已啟動，請對準條碼');
+            
+        } catch (err) {
+            console.error('啟動掃描器失敗:', err);
+            showToast('無法啟動掃描器，請確認已允許鏡頭權限');
+            updateScannerStatus('error', false);
+            html5QrCodeScanner = null;
         }
     }
 
-    // 掃描器控制
-    function startScanner() {
-        if (!html5QrCodeScanner) {
-            initScanner();
-        }
-    }
-    
-    function initScanner() {
-        html5QrCodeScanner = new Html5Qrcode("reader");
-        const config = {
-            fps: 10,
-            qrbox: { width: 280, height: 280 },
-            aspectRatio: 1.0
-        };
-        
-        html5QrCodeScanner.start(
-            { facingMode: "environment" },
-            config,
-            onScanSuccess,
-            (error) => {}
-        ).then(() => {
-            isScannerRunning = true;
-            document.getElementById('startScannerBtn').style.display = 'none';
-            document.getElementById('stopScannerBtn').style.display = 'inline-block';
-            showToast('📷 掃描器已啟動');
-        }).catch(err => {
-            console.error('啟動掃描器失敗:', err);
-            showToast('無法啟動掃描器，請確認已允許鏡頭權限');
-        });
-    }
-    
-    function stopScanner() {
+    // 啟動掃描器（外部呼叫）
+    async function startScanner() {
+        // 如果已經有掃描器在運行，先停止
         if (html5QrCodeScanner && isScannerRunning) {
-            html5QrCodeScanner.stop().then(() => {
-                isScannerRunning = false;
-                document.getElementById('startScannerBtn').style.display = 'inline-block';
-                document.getElementById('stopScannerBtn').style.display = 'none';
-                showToast('掃描器已停止');
-            });
+            await stopScannerAndRelease();
+            html5QrCodeScanner = null;
         }
+        
+        // 重新初始化
+        await initScanner();
+    }
+
+    // 手動停止掃描器
+    async function stopScanner() {
+        await stopScannerAndRelease();
+        showToast('掃描器已停止');
     }
 
     // 貨品列表相關函數
@@ -680,6 +780,8 @@
     window.editProductById = async function(id) {
         const product = await db.products.get(id);
         if (product) {
+            // 確保掃描器已停止
+            await stopScannerAndRelease();
             switchTab('scan');
             showProductForm(product, product.barcode);
         }
@@ -691,7 +793,9 @@
             showToast('已刪除');
             loadProductList();
             updateStats();
-            resetForm();
+            if (document.getElementById('productFormCard').style.display === 'block') {
+                resetForm();
+            }
         }
     };
     
@@ -763,6 +867,7 @@
         document.getElementById('stopScannerBtn').addEventListener('click', stopScanner);
         document.getElementById('productForm').addEventListener('submit', (e) => { e.preventDefault(); handleSave(); });
         document.getElementById('cancelBtn').addEventListener('click', resetForm);
+        document.getElementById('scanAgainBtn').addEventListener('click', restartScanner);
         document.getElementById('deleteBtn').addEventListener('click', async () => { if (currentProduct) await deleteProduct(currentProduct.id); });
         document.getElementById('exportBtn').addEventListener('click', exportData);
         document.getElementById('importFile').addEventListener('change', (e) => { if (e.target.files[0]) importData(e.target.files[0]); e.target.value = ''; });
