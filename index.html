@@ -118,6 +118,20 @@
             color: #666;
         }
 
+        .price-group {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .price-group input {
+            flex: 2;
+        }
+
+        .price-group select {
+            flex: 1;
+        }
+
         .btn {
             padding: 12px 20px;
             border: none;
@@ -145,6 +159,11 @@
 
         .btn-success {
             background: #34c759;
+            color: white;
+        }
+
+        .btn-warning {
+            background: #ff9500;
             color: white;
         }
 
@@ -413,6 +432,11 @@
             padding: 8px 16px;
             font-size: 14px;
         }
+
+        .manual-add-btn {
+            width: 100%;
+            margin-top: 12px;
+        }
     </style>
 </head>
 <body>
@@ -447,7 +471,7 @@
             <form id="productForm">
                 <div class="form-group">
                     <label>📷 條碼 / QR Code</label>
-                    <input type="text" id="barcode" readonly placeholder="掃描後自動顯示">
+                    <input type="text" id="barcode" placeholder="掃描後自動顯示或手動輸入">
                 </div>
                 <div class="form-group">
                     <label>🏷️ 貨品名稱</label>
@@ -460,8 +484,15 @@
                     </select>
                 </div>
                 <div class="form-group">
-                    <label>💰 價格 (MOP)</label>
-                    <input type="number" id="price" step="0.01" placeholder="0.00">
+                    <label>💰 價格</label>
+                    <div class="price-group">
+                        <input type="number" id="price" step="0.01" placeholder="0.00">
+                        <select id="currency">
+                            <option value="MOP">MOP</option>
+                            <option value="HKD">HKD</option>
+                            <option value="RMB">RMB</option>
+                        </select>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label>📦 數量</label>
@@ -478,6 +509,11 @@
                     <button type="button" class="btn btn-success" id="scanAgainBtn" style="display:none;">📷 掃描</button>
                 </div>
             </form>
+        </div>
+        
+        <!-- 手動新增按鈕 -->
+        <div class="card" id="manualAddCard">
+            <button class="btn btn-warning manual-add-btn" id="manualAddBtn">✏️ 手動新增貨品</button>
         </div>
         
         <!-- 掃描提示 -->
@@ -508,6 +544,7 @@
                 <input type="text" id="searchInput" placeholder="🔍 搜尋貨品名稱或條碼...">
                 <select id="categoryFilter">
                     <option value="">所有分類</option>
+                    <option value="__UNCATEGORIZED__">未分類</option>
                 </select>
             </div>
             <div id="productList"></div>
@@ -554,6 +591,9 @@
                 5. 填寫/確認貨品資訊後點擊「儲存」<br>
                 6. 點擊「掃描」繼續掃描其他貨品</p>
                 
+                <p>📌 <strong>手動新增貨品</strong><br>
+                點擊「手動新增貨品」按鈕，可以手動輸入條碼（可空白）和其他資訊</p>
+                
                 <p>📌 <strong>編輯貨品</strong><br>
                 在「貨品清單」點擊貨品即可編輯</p>
                 
@@ -573,8 +613,8 @@
 <script>
     // 初始化 IndexedDB
     const db = new Dexie('InventoryDB');
-    db.version(2).stores({
-        products: '++id, barcode, name, category, price, quantity, remark, createdAt, updatedAt',
+    db.version(3).stores({
+        products: '++id, barcode, name, category, price, currency, quantity, remark, createdAt, updatedAt',
         categories: '++id, name, createdAt'
     });
 
@@ -630,6 +670,7 @@
 
     // 根據條碼查詢貨品
     async function getProductByBarcode(barcode) {
+        if (!barcode) return null;
         return await db.products.where('barcode').equals(barcode).first();
     }
 
@@ -665,25 +706,22 @@
     }
 
     // 顯示貨品編輯表單
-    async function showProductForm(product, barcode) {
+    async function showProductForm(product, barcode, isManualAdd = false) {
         const formCard = document.getElementById('productFormCard');
         const formTitle = document.getElementById('formTitle');
         const deleteBtn = document.getElementById('deleteBtn');
         const scanAgainBtn = document.getElementById('scanAgainBtn');
         const lastScanDiv = document.getElementById('lastScanDisplay');
-        
-        // 顯示最後掃描的條碼
-        lastScanDiv.style.display = 'block';
-        document.getElementById('lastScannedCode').textContent = barcode;
+        const barcodeInput = document.getElementById('barcode');
         
         // 載入分類選項
         await loadCategoryOptions();
         
         if (product) {
             formTitle.textContent = '✏️ 編輯貨品（已存在）';
-            document.getElementById('barcode').value = product.barcode;
+            barcodeInput.value = product.barcode || '';
+            barcodeInput.readOnly = false;
             document.getElementById('name').value = product.name || '';
-            // 修正：正確顯示已選擇的分類
             const categorySelect = document.getElementById('category');
             if (product.category) {
                 categorySelect.value = product.category;
@@ -691,34 +729,58 @@
                 categorySelect.value = '';
             }
             document.getElementById('price').value = product.price || '';
+            document.getElementById('currency').value = product.currency || 'MOP';
             document.getElementById('quantity').value = product.quantity || 0;
             document.getElementById('remark').value = product.remark || '';
             deleteBtn.style.display = 'block';
             currentProduct = product;
+            
+            // 如果是手動新增或編輯，不顯示掃描條碼區域
+            if (lastScanDiv) lastScanDiv.style.display = 'none';
         } else {
-            formTitle.textContent = '➕ 新增貨品（新條碼）';
-            document.getElementById('barcode').value = barcode;
+            formTitle.textContent = '➕ 新增貨品';
+            barcodeInput.value = barcode || '';
+            barcodeInput.readOnly = false;
             document.getElementById('name').value = '';
             document.getElementById('category').value = '';
             document.getElementById('price').value = '';
+            document.getElementById('currency').value = 'MOP';
             document.getElementById('quantity').value = 1;
             document.getElementById('remark').value = '';
             deleteBtn.style.display = 'none';
             currentProduct = null;
+            
+            if (barcode && !isManualAdd) {
+                // 掃描來的，顯示條碼
+                if (lastScanDiv) {
+                    lastScanDiv.style.display = 'block';
+                    document.getElementById('lastScannedCode').textContent = barcode;
+                }
+            } else {
+                if (lastScanDiv) lastScanDiv.style.display = 'none';
+            }
         }
         
         scanAgainBtn.style.display = 'block';
         formCard.style.display = 'block';
         document.getElementById('scanHint').style.display = 'none';
+        document.getElementById('manualAddCard').style.display = 'none';
         setTimeout(() => document.getElementById('name').focus(), 100);
     }
 
     function resetForm() {
         document.getElementById('productFormCard').style.display = 'none';
         document.getElementById('scanHint').style.display = 'block';
+        document.getElementById('manualAddCard').style.display = 'block';
         document.getElementById('lastScanDisplay').style.display = 'none';
         document.getElementById('scanAgainBtn').style.display = 'none';
         currentProduct = null;
+    }
+
+    // 手動新增貨品
+    function manualAddProduct() {
+        stopScannerAndRelease();
+        showProductForm(null, '', true);
     }
 
     // 儲存表單
@@ -728,6 +790,7 @@
             name: document.getElementById('name').value.trim(),
             category: document.getElementById('category').value,
             price: parseFloat(document.getElementById('price').value) || 0,
+            currency: document.getElementById('currency').value,
             quantity: parseInt(document.getElementById('quantity').value) || 0,
             remark: document.getElementById('remark').value
         };
@@ -740,7 +803,7 @@
             loadProductList();
         }
         updateStats();
-        showToast('儲存完成！可點擊「掃描」繼續');
+        showToast('儲存完成！可繼續操作');
     }
 
     // 重新啟動掃描器
@@ -921,7 +984,10 @@
         if (categorySelect) categorySelect.innerHTML = options;
         if (categoryFilter) {
             let filterOptions = '<option value="">所有分類</option>';
-            filterOptions += options;
+            filterOptions += '<option value="__UNCATEGORIZED__">未分類</option>';
+            categories.forEach(cat => {
+                filterOptions += `<option value="${escapeHtml(cat.name)}">${escapeHtml(cat.name)}</option>`;
+            });
             categoryFilter.innerHTML = filterOptions;
         }
     }
@@ -965,7 +1031,7 @@
         return await db.products.toArray();
     }
 
-    async function searchProducts(keyword, categoryFilter) {
+    async function searchProducts(keyword, categoryFilterValue) {
         let products = await db.products.toArray();
         
         if (keyword) {
@@ -975,8 +1041,13 @@
             );
         }
         
-        if (categoryFilter) {
-            products = products.filter(p => p.category === categoryFilter);
+        if (categoryFilterValue) {
+            if (categoryFilterValue === '__UNCATEGORIZED__') {
+                // 篩選未分類（category 為空字串或 null）
+                products = products.filter(p => !p.category || p.category === '');
+            } else {
+                products = products.filter(p => p.category === categoryFilterValue);
+            }
         }
         
         return products;
@@ -984,8 +1055,8 @@
 
     async function loadProductList() {
         const searchKeyword = document.getElementById('searchInput')?.value || '';
-        const categoryFilter = document.getElementById('categoryFilter')?.value || '';
-        const products = await searchProducts(searchKeyword, categoryFilter);
+        const categoryFilterValue = document.getElementById('categoryFilter')?.value || '';
+        const products = await searchProducts(searchKeyword, categoryFilterValue);
         const container = document.getElementById('productList');
         
         if (products.length === 0) {
@@ -993,14 +1064,16 @@
             return;
         }
         
-        container.innerHTML = products.map(p => `
+        container.innerHTML = products.map(p => {
+            const currencySymbol = p.currency === 'MOP' ? 'MOP' : (p.currency === 'HKD' ? 'HKD' : 'RMB');
+            return `
             <div class="product-item">
                 <div class="product-header">
                     <div class="product-info" onclick="editProductById(${p.id})">
                         <div class="product-name">${escapeHtml(p.name || '無名稱')}</div>
                         <div class="product-barcode">📷 ${escapeHtml(p.barcode || '無條碼')}</div>
                         ${p.category ? `<div class="product-category">🏷️ ${escapeHtml(p.category)}</div>` : ''}
-                        <div class="product-meta">💰 MOP ${(p.price || 0).toFixed(2)} &nbsp;|&nbsp; 📦 ${p.quantity || 0} 件</div>
+                        <div class="product-meta">💰 ${currencySymbol} ${(p.price || 0).toFixed(2)} &nbsp;|&nbsp; 📦 ${p.quantity || 0} 件</div>
                     </div>
                     <div class="product-actions">
                         <button class="icon-btn" id="view-btn-${p.id}" onclick="event.stopPropagation(); toggleProductDetails(${p.id})">👁️</button>
@@ -1011,7 +1084,7 @@
                 <div class="product-details" id="product-details-${p.id}">
                     <div class="detail-row">
                         <div class="detail-label">📷 條碼：</div>
-                        <div class="detail-value">${escapeHtml(p.barcode || '無條碼')}</div>
+                        <div class="detail-value">${escapeHtml(p.barcode) || '無條碼'}</div>
                     </div>
                     <div class="detail-row">
                         <div class="detail-label">🏷️ 名稱：</div>
@@ -1023,15 +1096,11 @@
                     </div>
                     <div class="detail-row">
                         <div class="detail-label">💰 價格：</div>
-                        <div class="detail-value">MOP ${(p.price || 0).toFixed(2)}</div>
+                        <div class="detail-value">${currencySymbol} ${(p.price || 0).toFixed(2)}</div>
                     </div>
                     <div class="detail-row">
                         <div class="detail-label">📦 數量：</div>
                         <div class="detail-value">${p.quantity || 0} 件</div>
-                    </div>
-                    <div class="detail-row">
-                        <div class="detail-label">💰 小計：</div>
-                        <div class="detail-value">MOP ${((p.price || 0) * (p.quantity || 0)).toFixed(2)}</div>
                     </div>
                     <div class="detail-row">
                         <div class="detail-label">📝 備註：</div>
@@ -1047,7 +1116,7 @@
                     </div>
                 </div>
             </div>
-        `).join('');
+        `}).join('');
         
         // 如果有展開的貨品，重新綁定展開狀態
         if (expandedProductId) {
@@ -1096,9 +1165,16 @@
     async function updateStats() {
         const count = await db.products.count();
         const products = await db.products.toArray();
-        const totalValue = products.reduce((sum, p) => sum + (p.price || 0) * (p.quantity || 0), 0);
+        // 計算總價值時統一轉換為 MOP（假設匯率：HKD 1:1.03 MOP, RMB 1:1.25 MOP）
+        let totalValueMOP = 0;
+        products.forEach(p => {
+            let priceInMOP = p.price || 0;
+            if (p.currency === 'HKD') priceInMOP = p.price * 1.03;
+            if (p.currency === 'RMB') priceInMOP = p.price * 1.25;
+            totalValueMOP += priceInMOP * (p.quantity || 0);
+        });
         document.getElementById('totalCount').textContent = count;
-        document.getElementById('totalValue').textContent = `MOP ${totalValue.toFixed(2)}`;
+        document.getElementById('totalValue').textContent = `MOP ${totalValueMOP.toFixed(2)}`;
     }
 
     // 匯出/匯入
@@ -1170,6 +1246,9 @@
             loadCategoryOptions();
         }
         if (tabId === 'settings') { updateStats(); }
+        if (tabId === 'scan') {
+            resetForm();
+        }
     }
 
     // 事件綁定
@@ -1194,6 +1273,7 @@
             addCategory(name);
             document.getElementById('newCategoryName').value = '';
         });
+        document.getElementById('manualAddBtn').addEventListener('click', manualAddProduct);
         
         // 初始化
         updateStats();
