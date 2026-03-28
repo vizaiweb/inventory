@@ -161,16 +161,20 @@
         .product-item {
             background: #f8f9fa;
             border-radius: 12px;
-            padding: 14px;
             margin-bottom: 10px;
+            overflow: hidden;
+        }
+
+        .product-header {
+            padding: 14px;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            cursor: pointer;
         }
 
         .product-info {
             flex: 1;
-            cursor: pointer;
         }
 
         .product-name {
@@ -202,12 +206,53 @@
             margin-top: 4px;
         }
 
+        .product-actions {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
         .icon-btn {
             background: none;
             border: none;
             font-size: 20px;
             cursor: pointer;
             padding: 8px;
+            transition: transform 0.2s;
+        }
+
+        .icon-btn:active {
+            transform: scale(0.9);
+        }
+
+        .product-details {
+            background: white;
+            border-top: 1px solid #e0e0e0;
+            padding: 14px;
+            display: none;
+        }
+
+        .product-details.show {
+            display: block;
+        }
+
+        .detail-row {
+            display: flex;
+            padding: 8px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .detail-label {
+            font-weight: 600;
+            color: #666;
+            width: 80px;
+            font-size: 14px;
+        }
+
+        .detail-value {
+            flex: 1;
+            color: #333;
+            font-size: 14px;
         }
 
         .toast {
@@ -356,8 +401,12 @@
             margin-bottom: 12px;
         }
 
-        .filter-group select {
+        .filter-group input {
             flex: 1;
+            padding: 10px;
+            border: 1px solid #e0e0e0;
+            border-radius: 12px;
+            font-size: 14px;
         }
 
         .btn-small {
@@ -450,7 +499,7 @@
             <div class="stats-number" id="totalCount">0</div>
             <div class="stats-label">總貨品數</div>
             <div class="stats-number" id="totalValue" style="font-size: 20px; margin-top: 8px;">MOP 0</div>
-            <div class="stats-label">庫存總價值</div>
+            <div class="stats-label">貨品總價值</div>
         </div>
         
         <div class="card">
@@ -468,7 +517,7 @@
             <div class="card-title">🏷️ 分類管理</div>
             <div style="margin-bottom: 12px;">
                 <div class="filter-group">
-                    <input type="text" id="newCategoryName" placeholder="新分類名稱" style="flex:1; padding: 10px; border: 1px solid #e0e0e0; border-radius: 12px;">
+                    <input type="text" id="newCategoryName" placeholder="新分類名稱">
                     <button class="btn btn-primary btn-small" id="addCategoryBtn">➕ 新增</button>
                 </div>
             </div>
@@ -508,6 +557,9 @@
                 <p>📌 <strong>編輯貨品</strong><br>
                 在「貨品清單」點擊貨品即可編輯</p>
                 
+                <p>📌 <strong>查閱貨品</strong><br>
+                點擊貨品左側的 👁️ 圖示可以展開/收起詳細資料</p>
+                
                 <p>📌 <strong>分類管理</strong><br>
                 在「貨品清單」頁面可以新增、編輯、刪除分類</p>
                 
@@ -530,6 +582,7 @@
     let currentProduct = null;
     let isScannerRunning = false;
     let isScanningPaused = false;
+    let expandedProductId = null; // 記錄展開的貨品ID
 
     function showToast(message) {
         const existingToast = document.querySelector('.toast');
@@ -612,7 +665,7 @@
     }
 
     // 顯示貨品編輯表單
-    function showProductForm(product, barcode) {
+    async function showProductForm(product, barcode) {
         const formCard = document.getElementById('productFormCard');
         const formTitle = document.getElementById('formTitle');
         const deleteBtn = document.getElementById('deleteBtn');
@@ -624,13 +677,19 @@
         document.getElementById('lastScannedCode').textContent = barcode;
         
         // 載入分類選項
-        loadCategoryOptions();
+        await loadCategoryOptions();
         
         if (product) {
             formTitle.textContent = '✏️ 編輯貨品（已存在）';
             document.getElementById('barcode').value = product.barcode;
             document.getElementById('name').value = product.name || '';
-            document.getElementById('category').value = product.category || '';
+            // 修正：正確顯示已選擇的分類
+            const categorySelect = document.getElementById('category');
+            if (product.category) {
+                categorySelect.value = product.category;
+            } else {
+                categorySelect.value = '';
+            }
             document.getElementById('price').value = product.price || '';
             document.getElementById('quantity').value = product.quantity || 0;
             document.getElementById('remark').value = product.remark || '';
@@ -709,10 +768,10 @@
         
         if (existingProduct) {
             showToast(`📦 找到貨品: ${existingProduct.name}`);
-            showProductForm(existingProduct, decodedText);
+            await showProductForm(existingProduct, decodedText);
         } else {
             showToast(`🆕 新條碼，請填寫貨品資訊`);
-            showProductForm(null, decodedText);
+            await showProductForm(null, decodedText);
         }
         
         isScanningPaused = false;
@@ -876,6 +935,31 @@
 
     window.deleteCategory = deleteCategory;
 
+    // 查閱功能：切換展開/收起詳細資料
+    window.toggleProductDetails = function(id) {
+        const detailsDiv = document.getElementById(`product-details-${id}`);
+        const viewBtn = document.getElementById(`view-btn-${id}`);
+        
+        if (expandedProductId === id) {
+            // 收起
+            detailsDiv.classList.remove('show');
+            if (viewBtn) viewBtn.textContent = '👁️';
+            expandedProductId = null;
+        } else {
+            // 收起之前展開的
+            if (expandedProductId) {
+                const prevDetails = document.getElementById(`product-details-${expandedProductId}`);
+                const prevBtn = document.getElementById(`view-btn-${expandedProductId}`);
+                if (prevDetails) prevDetails.classList.remove('show');
+                if (prevBtn) prevBtn.textContent = '👁️';
+            }
+            // 展開新的
+            detailsDiv.classList.add('show');
+            if (viewBtn) viewBtn.textContent = '🔽';
+            expandedProductId = id;
+        }
+    };
+
     // 貨品列表相關函數
     async function getAllProducts() {
         return await db.products.toArray();
@@ -911,18 +995,71 @@
         
         container.innerHTML = products.map(p => `
             <div class="product-item">
-                <div class="product-info" onclick="editProductById(${p.id})">
-                    <div class="product-name">${escapeHtml(p.name || '無名稱')}</div>
-                    <div class="product-barcode">📷 ${escapeHtml(p.barcode || '無條碼')}</div>
-                    ${p.category ? `<div class="product-category">🏷️ ${escapeHtml(p.category)}</div>` : ''}
-                    <div class="product-meta">💰 MOP ${(p.price || 0).toFixed(2)} &nbsp;|&nbsp; 📦 ${p.quantity || 0} 件</div>
+                <div class="product-header">
+                    <div class="product-info" onclick="editProductById(${p.id})">
+                        <div class="product-name">${escapeHtml(p.name || '無名稱')}</div>
+                        <div class="product-barcode">📷 ${escapeHtml(p.barcode || '無條碼')}</div>
+                        ${p.category ? `<div class="product-category">🏷️ ${escapeHtml(p.category)}</div>` : ''}
+                        <div class="product-meta">💰 MOP ${(p.price || 0).toFixed(2)} &nbsp;|&nbsp; 📦 ${p.quantity || 0} 件</div>
+                    </div>
+                    <div class="product-actions">
+                        <button class="icon-btn" id="view-btn-${p.id}" onclick="event.stopPropagation(); toggleProductDetails(${p.id})">👁️</button>
+                        <button class="icon-btn" onclick="event.stopPropagation(); editProductById(${p.id})">✏️</button>
+                        <button class="icon-btn" onclick="event.stopPropagation(); deleteProductById(${p.id})">🗑️</button>
+                    </div>
                 </div>
-                <div class="product-actions">
-                    <button class="icon-btn" onclick="editProductById(${p.id})">✏️</button>
-                    <button class="icon-btn" onclick="deleteProductById(${p.id})">🗑️</button>
+                <div class="product-details" id="product-details-${p.id}">
+                    <div class="detail-row">
+                        <div class="detail-label">📷 條碼：</div>
+                        <div class="detail-value">${escapeHtml(p.barcode || '無條碼')}</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">🏷️ 名稱：</div>
+                        <div class="detail-value">${escapeHtml(p.name || '無名稱')}</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">📂 分類：</div>
+                        <div class="detail-value">${p.category ? escapeHtml(p.category) : '未分類'}</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">💰 價格：</div>
+                        <div class="detail-value">MOP ${(p.price || 0).toFixed(2)}</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">📦 數量：</div>
+                        <div class="detail-value">${p.quantity || 0} 件</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">💰 小計：</div>
+                        <div class="detail-value">MOP ${((p.price || 0) * (p.quantity || 0)).toFixed(2)}</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">📝 備註：</div>
+                        <div class="detail-value">${escapeHtml(p.remark) || '無'}</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">🕐 建立時間：</div>
+                        <div class="detail-value">${p.createdAt ? new Date(p.createdAt).toLocaleString('zh-TW') : '未知'}</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">✏️ 更新時間：</div>
+                        <div class="detail-value">${p.updatedAt ? new Date(p.updatedAt).toLocaleString('zh-TW') : '未知'}</div>
+                    </div>
                 </div>
             </div>
         `).join('');
+        
+        // 如果有展開的貨品，重新綁定展開狀態
+        if (expandedProductId) {
+            const detailsDiv = document.getElementById(`product-details-${expandedProductId}`);
+            const viewBtn = document.getElementById(`view-btn-${expandedProductId}`);
+            if (detailsDiv) {
+                detailsDiv.classList.add('show');
+                if (viewBtn) viewBtn.textContent = '🔽';
+            } else {
+                expandedProductId = null;
+            }
+        }
     }
     
     function escapeHtml(str) {
@@ -940,7 +1077,7 @@
         if (product) {
             await stopScannerAndRelease();
             switchTab('scan');
-            showProductForm(product, product.barcode);
+            await showProductForm(product, product.barcode);
         }
     };
     
