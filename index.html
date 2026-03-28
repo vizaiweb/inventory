@@ -96,7 +96,8 @@
         }
 
         .form-group input, 
-        .form-group textarea {
+        .form-group textarea,
+        .form-group select {
             width: 100%;
             padding: 12px;
             border: 1px solid #e0e0e0;
@@ -106,7 +107,8 @@
         }
 
         .form-group input:focus, 
-        .form-group textarea:focus {
+        .form-group textarea:focus,
+        .form-group select:focus {
             outline: none;
             border-color: #007aff;
         }
@@ -190,6 +192,16 @@
             margin-top: 4px;
         }
 
+        .product-category {
+            display: inline-block;
+            background: #e3f2fd;
+            color: #1976d2;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            margin-top: 4px;
+        }
+
         .icon-btn {
             background: none;
             border: none;
@@ -258,12 +270,14 @@
             margin-bottom: 16px;
         }
 
-        .search-box input {
+        .search-box input,
+        .search-box select {
             width: 100%;
             padding: 12px;
             border: 1px solid #e0e0e0;
             border-radius: 12px;
             font-size: 16px;
+            margin-bottom: 8px;
         }
 
         .empty-state {
@@ -319,6 +333,37 @@
             font-size: 12px;
             color: #999;
         }
+
+        .category-item {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 14px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .category-name {
+            font-weight: 600;
+            font-size: 16px;
+            color: #333;
+        }
+
+        .filter-group {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .filter-group select {
+            flex: 1;
+        }
+
+        .btn-small {
+            padding: 8px 16px;
+            font-size: 14px;
+        }
     </style>
 </head>
 <body>
@@ -356,12 +401,18 @@
                     <input type="text" id="barcode" readonly placeholder="掃描後自動顯示">
                 </div>
                 <div class="form-group">
-                    <label>🏷️ 貨品名稱 *</label>
-                    <input type="text" id="name" required placeholder="例：可口可樂 330ml">
+                    <label>🏷️ 貨品名稱</label>
+                    <input type="text" id="name" placeholder="例：可口可樂 330ml">
                 </div>
                 <div class="form-group">
-                    <label>💰 價格 (NT$)</label>
-                    <input type="number" id="price" step="1" placeholder="0">
+                    <label>🏷️ 分類</label>
+                    <select id="category">
+                        <option value="">未分類</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>💰 價格 (MOP)</label>
+                    <input type="number" id="price" step="0.01" placeholder="0.00">
                 </div>
                 <div class="form-group">
                     <label>📦 數量</label>
@@ -373,9 +424,9 @@
                 </div>
                 <div class="btn-group">
                     <button type="submit" class="btn btn-primary" id="saveBtn">💾 儲存</button>
-                    <button type="button" class="btn btn-secondary" id="cancelBtn">取消</button>
+                    <button type="button" class="btn btn-secondary" id="cancelBtn">❌ 取消</button>
                     <button type="button" class="btn btn-danger" id="deleteBtn" style="display:none;">🗑 刪除</button>
-                    <button type="button" class="btn btn-success" id="scanAgainBtn" style="display:none;">📷 掃描下一筆</button>
+                    <button type="button" class="btn btn-success" id="scanAgainBtn" style="display:none;">📷 掃描</button>
                 </div>
             </form>
         </div>
@@ -398,7 +449,7 @@
         <div class="stats-card">
             <div class="stats-number" id="totalCount">0</div>
             <div class="stats-label">總貨品數</div>
-            <div class="stats-number" id="totalValue" style="font-size: 20px; margin-top: 8px;">$0</div>
+            <div class="stats-number" id="totalValue" style="font-size: 20px; margin-top: 8px;">MOP 0</div>
             <div class="stats-label">庫存總價值</div>
         </div>
         
@@ -406,8 +457,22 @@
             <div class="card-title">📋 所有貨品</div>
             <div class="search-box">
                 <input type="text" id="searchInput" placeholder="🔍 搜尋貨品名稱或條碼...">
+                <select id="categoryFilter">
+                    <option value="">所有分類</option>
+                </select>
             </div>
             <div id="productList"></div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">🏷️ 分類管理</div>
+            <div style="margin-bottom: 12px;">
+                <div class="filter-group">
+                    <input type="text" id="newCategoryName" placeholder="新分類名稱" style="flex:1; padding: 10px; border: 1px solid #e0e0e0; border-radius: 12px;">
+                    <button class="btn btn-primary btn-small" id="addCategoryBtn">➕ 新增</button>
+                </div>
+            </div>
+            <div id="categoryList"></div>
         </div>
     </div>
 </div>
@@ -438,10 +503,13 @@
                 &nbsp;&nbsp;• <span style="color:#34c759;">✅ 有相同條碼</span> → 開啟該貨品資料<br>
                 &nbsp;&nbsp;• <span style="color:#007aff;">🆕 無相同條碼</span> → 開啟新增表單<br>
                 5. 填寫/確認貨品資訊後點擊「儲存」<br>
-                6. 點擊「掃描下一筆」繼續掃描其他貨品</p>
+                6. 點擊「掃描」繼續掃描其他貨品</p>
                 
                 <p>📌 <strong>編輯貨品</strong><br>
                 在「貨品清單」點擊貨品即可編輯</p>
+                
+                <p>📌 <strong>分類管理</strong><br>
+                在「貨品清單」頁面可以新增、編輯、刪除分類</p>
                 
                 <p>📌 <strong>資料備份</strong><br>
                 可匯出 JSON 檔案備份，或匯入還原資料</p>
@@ -453,8 +521,9 @@
 <script>
     // 初始化 IndexedDB
     const db = new Dexie('InventoryDB');
-    db.version(1).stores({
-        products: '++id, barcode, name, price, quantity, remark, createdAt, updatedAt'
+    db.version(2).stores({
+        products: '++id, barcode, name, category, price, quantity, remark, createdAt, updatedAt',
+        categories: '++id, name, createdAt'
     });
 
     let html5QrCodeScanner = null;
@@ -554,21 +623,24 @@
         lastScanDiv.style.display = 'block';
         document.getElementById('lastScannedCode').textContent = barcode;
         
+        // 載入分類選項
+        loadCategoryOptions();
+        
         if (product) {
-            // 有相同條碼 → 編輯模式，載入已儲存的資料
             formTitle.textContent = '✏️ 編輯貨品（已存在）';
             document.getElementById('barcode').value = product.barcode;
             document.getElementById('name').value = product.name || '';
+            document.getElementById('category').value = product.category || '';
             document.getElementById('price').value = product.price || '';
             document.getElementById('quantity').value = product.quantity || 0;
             document.getElementById('remark').value = product.remark || '';
             deleteBtn.style.display = 'block';
             currentProduct = product;
         } else {
-            // 無相同條碼 → 新增模式，條碼已自動填入
             formTitle.textContent = '➕ 新增貨品（新條碼）';
             document.getElementById('barcode').value = barcode;
             document.getElementById('name').value = '';
+            document.getElementById('category').value = '';
             document.getElementById('price').value = '';
             document.getElementById('quantity').value = 1;
             document.getElementById('remark').value = '';
@@ -576,7 +648,6 @@
             currentProduct = null;
         }
         
-        // 顯示掃描下一筆按鈕
         scanAgainBtn.style.display = 'block';
         formCard.style.display = 'block';
         document.getElementById('scanHint').style.display = 'none';
@@ -593,16 +664,10 @@
 
     // 儲存表單
     async function handleSave() {
-        const name = document.getElementById('name').value.trim();
-        if (!name) {
-            showToast('請輸入貨品名稱');
-            document.getElementById('name').focus();
-            return;
-        }
-        
         const productData = {
             barcode: document.getElementById('barcode').value,
-            name: name,
+            name: document.getElementById('name').value.trim(),
+            category: document.getElementById('category').value,
             price: parseFloat(document.getElementById('price').value) || 0,
             quantity: parseInt(document.getElementById('quantity').value) || 0,
             remark: document.getElementById('remark').value
@@ -616,45 +681,30 @@
             loadProductList();
         }
         updateStats();
-        
-        // 儲存後顯示成功訊息，但不自動關閉表單，讓用戶決定是否繼續掃描
-        showToast('儲存完成！可點擊「掃描下一筆」繼續');
+        showToast('儲存完成！可點擊「掃描」繼續');
     }
 
-    // 重新啟動掃描器（用於掃描下一筆）
+    // 重新啟動掃描器
     async function restartScanner() {
-        // 先關閉表單
         resetForm();
-        
-        // 確保之前的掃描器已完全停止
         await stopScannerAndRelease();
-        
-        // 等待一下讓資源釋放
         await new Promise(resolve => setTimeout(resolve, 300));
-        
-        // 重新初始化掃描器
         html5QrCodeScanner = null;
         isScannerRunning = false;
-        
-        // 啟動新掃描器
         await initScanner();
     }
 
-    // ⭐ 核心功能：掃描條碼後的處理
+    // 掃描成功處理
     async function onScanSuccess(decodedText) {
-        // 防止重複觸發
         if (!isScannerRunning || isScanningPaused) return;
         
         console.log('📷 掃描到條碼:', decodedText);
         
-        // 立即停止掃描器，讓用戶專心填寫資料
         isScanningPaused = true;
         await stopScannerAndRelease();
         
-        // 震動回饋
         if (navigator.vibrate) navigator.vibrate(100);
         
-        // 查詢資料庫是否有相同條碼
         const existingProduct = await getProductByBarcode(decodedText);
         
         if (existingProduct) {
@@ -665,7 +715,6 @@
             showProductForm(null, decodedText);
         }
         
-        // 重置暫停標誌，但掃描器已經停止，需要用戶手動重啟
         isScanningPaused = false;
     }
 
@@ -677,7 +726,6 @@
             return;
         }
         
-        // 清空 reader 內容
         readerElement.innerHTML = '';
         
         try {
@@ -692,10 +740,7 @@
                 { facingMode: "environment" },
                 config,
                 onScanSuccess,
-                (error) => {
-                    // 靜默處理錯誤，避免干擾用戶
-                    // console.debug('掃描錯誤:', error);
-                }
+                (error) => {}
             );
             
             isScannerRunning = true;
@@ -710,41 +755,153 @@
         }
     }
 
-    // 啟動掃描器（外部呼叫）
     async function startScanner() {
-        // 如果已經有掃描器在運行，先停止
         if (html5QrCodeScanner && isScannerRunning) {
             await stopScannerAndRelease();
             html5QrCodeScanner = null;
         }
-        
-        // 重新初始化
         await initScanner();
     }
 
-    // 手動停止掃描器
     async function stopScanner() {
         await stopScannerAndRelease();
         showToast('掃描器已停止');
     }
+
+    // 分類管理功能
+    async function loadCategories() {
+        return await db.categories.toArray();
+    }
+
+    async function addCategory(name) {
+        if (!name.trim()) {
+            showToast('請輸入分類名稱');
+            return;
+        }
+        const existing = await db.categories.where('name').equals(name.trim()).first();
+        if (existing) {
+            showToast('分類已存在');
+            return;
+        }
+        await db.categories.add({
+            name: name.trim(),
+            createdAt: new Date().toISOString()
+        });
+        showToast('✅ 分類新增成功');
+        loadCategoryList();
+        loadCategoryOptions();
+    }
+
+    async function deleteCategory(id, name) {
+        const productsWithCategory = await db.products.where('category').equals(name).count();
+        if (productsWithCategory > 0) {
+            if (!confirm(`此分類下有 ${productsWithCategory} 個貨品，刪除後這些貨品將變成「未分類」，確定要刪除嗎？`)) {
+                return;
+            }
+            // 將相關貨品的分類設為空
+            await db.products.where('category').equals(name).modify({ category: '' });
+        }
+        await db.categories.delete(id);
+        showToast('🗑 分類已刪除');
+        loadCategoryList();
+        loadCategoryOptions();
+        loadProductList();
+    }
+
+    async function updateCategory(id, oldName, newName) {
+        if (!newName.trim()) {
+            showToast('請輸入分類名稱');
+            return;
+        }
+        const existing = await db.categories.where('name').equals(newName.trim()).first();
+        if (existing && existing.id !== id) {
+            showToast('分類名稱已存在');
+            return;
+        }
+        await db.categories.update(id, { name: newName.trim() });
+        // 更新所有相關貨品的分類
+        await db.products.where('category').equals(oldName).modify({ category: newName.trim() });
+        showToast('✏️ 分類已更新');
+        loadCategoryList();
+        loadCategoryOptions();
+        loadProductList();
+    }
+
+    async function loadCategoryList() {
+        const categories = await loadCategories();
+        const container = document.getElementById('categoryList');
+        
+        if (categories.length === 0) {
+            container.innerHTML = `<div class="empty-state">📭 暫無分類，請新增</div>`;
+            return;
+        }
+        
+        container.innerHTML = categories.map(cat => `
+            <div class="category-item">
+                <div class="category-name" ondblclick="editCategoryInline(${cat.id}, '${escapeHtml(cat.name)}')">
+                    🏷️ ${escapeHtml(cat.name)}
+                </div>
+                <div>
+                    <button class="icon-btn" onclick="editCategoryPrompt(${cat.id}, '${escapeHtml(cat.name)}')">✏️</button>
+                    <button class="icon-btn" onclick="deleteCategory(${cat.id}, '${escapeHtml(cat.name)}')">🗑️</button>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    async function loadCategoryOptions() {
+        const categories = await loadCategories();
+        const categorySelect = document.getElementById('category');
+        const categoryFilter = document.getElementById('categoryFilter');
+        
+        let options = '<option value="">未分類</option>';
+        categories.forEach(cat => {
+            options += `<option value="${escapeHtml(cat.name)}">${escapeHtml(cat.name)}</option>`;
+        });
+        
+        if (categorySelect) categorySelect.innerHTML = options;
+        if (categoryFilter) {
+            let filterOptions = '<option value="">所有分類</option>';
+            filterOptions += options;
+            categoryFilter.innerHTML = filterOptions;
+        }
+    }
+
+    window.editCategoryPrompt = async function(id, oldName) {
+        const newName = prompt('編輯分類名稱', oldName);
+        if (newName && newName !== oldName) {
+            await updateCategory(id, oldName, newName);
+        }
+    };
+
+    window.deleteCategory = deleteCategory;
 
     // 貨品列表相關函數
     async function getAllProducts() {
         return await db.products.toArray();
     }
 
-    async function searchProducts(keyword) {
-        if (!keyword) return await getAllProducts();
-        const products = await db.products.toArray();
-        return products.filter(p => 
-            (p.name && p.name.toLowerCase().includes(keyword.toLowerCase())) || 
-            (p.barcode && p.barcode.toLowerCase().includes(keyword.toLowerCase()))
-        );
+    async function searchProducts(keyword, categoryFilter) {
+        let products = await db.products.toArray();
+        
+        if (keyword) {
+            products = products.filter(p => 
+                (p.name && p.name.toLowerCase().includes(keyword.toLowerCase())) || 
+                (p.barcode && p.barcode.toLowerCase().includes(keyword.toLowerCase()))
+            );
+        }
+        
+        if (categoryFilter) {
+            products = products.filter(p => p.category === categoryFilter);
+        }
+        
+        return products;
     }
 
     async function loadProductList() {
         const searchKeyword = document.getElementById('searchInput')?.value || '';
-        const products = await searchProducts(searchKeyword);
+        const categoryFilter = document.getElementById('categoryFilter')?.value || '';
+        const products = await searchProducts(searchKeyword, categoryFilter);
         const container = document.getElementById('productList');
         
         if (products.length === 0) {
@@ -757,7 +914,8 @@
                 <div class="product-info" onclick="editProductById(${p.id})">
                     <div class="product-name">${escapeHtml(p.name || '無名稱')}</div>
                     <div class="product-barcode">📷 ${escapeHtml(p.barcode || '無條碼')}</div>
-                    <div class="product-meta">💰 $${(p.price || 0).toLocaleString()} &nbsp;|&nbsp; 📦 ${p.quantity || 0} 件</div>
+                    ${p.category ? `<div class="product-category">🏷️ ${escapeHtml(p.category)}</div>` : ''}
+                    <div class="product-meta">💰 MOP ${(p.price || 0).toFixed(2)} &nbsp;|&nbsp; 📦 ${p.quantity || 0} 件</div>
                 </div>
                 <div class="product-actions">
                     <button class="icon-btn" onclick="editProductById(${p.id})">✏️</button>
@@ -780,7 +938,6 @@
     window.editProductById = async function(id) {
         const product = await db.products.get(id);
         if (product) {
-            // 確保掃描器已停止
             await stopScannerAndRelease();
             switchTab('scan');
             showProductForm(product, product.barcode);
@@ -804,32 +961,45 @@
         const products = await db.products.toArray();
         const totalValue = products.reduce((sum, p) => sum + (p.price || 0) * (p.quantity || 0), 0);
         document.getElementById('totalCount').textContent = count;
-        document.getElementById('totalValue').textContent = `$${totalValue.toLocaleString()}`;
+        document.getElementById('totalValue').textContent = `MOP ${totalValue.toFixed(2)}`;
     }
 
     // 匯出/匯入
     async function exportData() {
-        const products = await getAllProducts();
-        if (products.length === 0) {
+        const products = await db.products.toArray();
+        const categories = await db.categories.toArray();
+        const exportData = { products, categories };
+        if (products.length === 0 && categories.length === 0) {
             showToast('沒有資料可匯出');
             return;
         }
-        const blob = new Blob([JSON.stringify(products, null, 2)], { type: 'application/json' });
+        const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
         saveAs(blob, `inventory_${new Date().toISOString().slice(0,19).replace(/:/g, '-')}.json`);
-        showToast(`匯出 ${products.length} 筆資料`);
+        showToast(`匯出 ${products.length} 筆貨品資料`);
     }
     
     async function importData(file) {
         const reader = new FileReader();
         reader.onload = async (e) => {
             try {
-                const products = JSON.parse(e.target.result);
-                if (!confirm(`匯入將覆蓋現有 ${await db.products.count()} 筆資料，確定繼續？`)) return;
+                const data = JSON.parse(e.target.result);
+                if (!confirm(`匯入將覆蓋現有 ${await db.products.count()} 筆貨品和 ${await db.categories.count()} 個分類，確定繼續？`)) return;
                 await db.products.clear();
-                const cleanProducts = products.map(({ id, ...rest }) => rest);
-                await db.products.bulkAdd(cleanProducts);
-                showToast(`成功匯入 ${cleanProducts.length} 筆資料`);
+                await db.categories.clear();
+                
+                if (data.products && data.products.length) {
+                    const cleanProducts = data.products.map(({ id, ...rest }) => rest);
+                    await db.products.bulkAdd(cleanProducts);
+                }
+                if (data.categories && data.categories.length) {
+                    const cleanCategories = data.categories.map(({ id, ...rest }) => rest);
+                    await db.categories.bulkAdd(cleanCategories);
+                }
+                
+                showToast(`成功匯入 ${data.products?.length || 0} 筆貨品，${data.categories?.length || 0} 個分類`);
                 loadProductList();
+                loadCategoryList();
+                loadCategoryOptions();
                 updateStats();
             } catch (err) {
                 showToast('檔案格式錯誤');
@@ -841,8 +1011,11 @@
     async function clearAllData() {
         if (confirm('⚠️ 確定清除所有資料？')) {
             await db.products.clear();
+            await db.categories.clear();
             showToast('已清除所有資料');
             loadProductList();
+            loadCategoryList();
+            loadCategoryOptions();
             updateStats();
             resetForm();
         }
@@ -853,7 +1026,12 @@
         document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
         document.getElementById(`tab-${tabId}`).classList.add('active');
         document.querySelector(`.tab[data-tab="${tabId}"]`).classList.add('active');
-        if (tabId === 'list') { loadProductList(); updateStats(); }
+        if (tabId === 'list') { 
+            loadProductList(); 
+            updateStats();
+            loadCategoryList();
+            loadCategoryOptions();
+        }
         if (tabId === 'settings') { updateStats(); }
     }
 
@@ -873,8 +1051,17 @@
         document.getElementById('importFile').addEventListener('change', (e) => { if (e.target.files[0]) importData(e.target.files[0]); e.target.value = ''; });
         document.getElementById('clearAllBtn').addEventListener('click', clearAllData);
         document.getElementById('searchInput').addEventListener('input', () => loadProductList());
+        document.getElementById('categoryFilter').addEventListener('change', () => loadProductList());
+        document.getElementById('addCategoryBtn').addEventListener('click', () => {
+            const name = document.getElementById('newCategoryName').value;
+            addCategory(name);
+            document.getElementById('newCategoryName').value = '';
+        });
         
+        // 初始化
         updateStats();
+        loadCategoryList();
+        loadCategoryOptions();
         showToast('歡迎使用！點擊「啟動掃描器」開始');
     });
 </script>
